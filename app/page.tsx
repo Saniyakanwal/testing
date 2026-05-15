@@ -1,7 +1,10 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Mic, Send, Store, Plus, ChevronLeft, ChevronRight, X, Trash2, CheckCircle2 } from 'lucide-react';
+import { 
+  ShoppingBag, Mic, Send, Store, Plus, 
+  ChevronLeft, ChevronRight, X, Trash2, CheckCircle2 
+} from 'lucide-react';
 
 const SHOPS_DATA = [
   { id: 1, name: "Sabzi Mandi", category: "Vegetables", items: [{ id: 101, name: "Potato", price: 80, unit: "1 kg", img: "https://cdn-icons-png.flaticon.com/128/1135/1135544.png" }] },
@@ -10,23 +13,31 @@ const SHOPS_DATA = [
 
 export default function CustomerPage() {
   const router = useRouter();
+  
+  // States
   const [selectedShop, setSelectedShop] = useState<any>(null);
   const [cart, setCart] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
-  
-  // Custom requests store karne ke liye state
   const [customRequest, setCustomRequest] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
+  // Functions
   const addToCart = (product: any, shopName: string) => {
     setCart([...cart, { ...product, shopName, cartId: Math.random() }]);
   };
 
-  const addCustomToCart = (shopName: string) => {
-    if (!customRequest.trim()) return;
+  const removeFromCart = (cartId: number) => {
+    setCart(cart.filter(item => item.cartId !== cartId));
+  };
+
+  const addCustomToCart = (shopName: string, customName?: string) => {
+    const itemName = customName || customRequest;
+    if (!itemName.trim()) return;
+
     setCart([...cart, { 
       id: Date.now(), 
-      name: customRequest, 
+      name: itemName, 
       price: 0, 
       unit: "Custom Request", 
       shopName, 
@@ -37,14 +48,11 @@ export default function CustomerPage() {
   };
 
   const total = cart.reduce((acc, item) => acc + item.price, 0);
+
   const groupedCart = cart.reduce((acc: any, item: any) => {
     (acc[item.shopName] = acc[item.shopName] || []).push(item);
     return acc;
   }, {});
-
-  const removeFromCart = (cartId: number) => {
-  setCart(cart.filter(item => item.cartId !== cartId));
-};
 
   const handlePlaceOrder = () => {
     setIsOrdering(true);
@@ -54,23 +62,28 @@ export default function CustomerPage() {
       total: total,
     };
     localStorage.setItem('latestOrder', JSON.stringify(orderData));
-    setTimeout(() => { router.push('/rider'); }, 1500);
+    
+    // Redirect to Rider Page after short delay
+    setTimeout(() => { 
+      router.push('/rider'); 
+    }, 1500);
   };
 
+  // UI for Order Success
   if (isOrdering) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-bounce text-green-600">
+        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-bounce text-green-600 shadow-lg">
           <CheckCircle2 size={48} />
         </div>
-        <h2 className="text-2xl font-black text-slate-800">Order Confirmed!</h2>
-        <p className="text-slate-500 mt-2">Redirecting to Rider Dashboard...</p>
+        <h2 className="text-2xl font-black text-slate-800">Order Placed!</h2>
+        <p className="text-slate-500 mt-2">Opening Rider Dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32">
+    <div className="min-h-screen bg-slate-50 pb-32 font-sans">
       {/* Navbar */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b px-5 py-5 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
@@ -79,11 +92,17 @@ export default function CustomerPage() {
               <ChevronLeft size={20} />
             </button>
           )}
-          <h1 className="text-xl font-black tracking-tight text-slate-900">{selectedShop ? selectedShop.name : "Marketplace"}</h1>
+          <h1 className="text-xl font-black tracking-tight text-slate-900">
+            {selectedShop ? selectedShop.name : "Marketplace"}
+          </h1>
         </div>
         <button onClick={() => setIsCartOpen(true)} className="relative p-3 bg-slate-900 text-white rounded-2xl shadow-xl active:scale-90 transition-all">
           <ShoppingBag size={22} />
-          {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-green-500 w-6 h-6 rounded-full border-2 border-white text-[10px] font-bold flex items-center justify-center">{cart.length}</span>}
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-green-500 w-6 h-6 rounded-full border-2 border-white text-[10px] font-bold flex items-center justify-center animate-in zoom-in">
+              {cart.length}
+            </span>
+          )}
         </button>
       </nav>
 
@@ -91,7 +110,7 @@ export default function CustomerPage() {
         {!selectedShop ? (
           /* --- SHOP LIST --- */
           <div className="grid gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2">Nearby Shops</h2>
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2">Select a Shop</h2>
             {SHOPS_DATA.map(shop => (
               <div key={shop.id} onClick={() => setSelectedShop(shop)} className="bg-white p-6 rounded-[2.5rem] flex justify-between items-center shadow-sm hover:shadow-md cursor-pointer border border-slate-100 group transition-all">
                 <div className="flex items-center gap-5">
@@ -121,44 +140,63 @@ export default function CustomerPage() {
 
             {/* --- VOICE & TEXT INPUT BOX --- */}
             <div className="bg-white p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200 shadow-inner">
-              <div className="mb-4">
-                <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
-                   Missing Something? 
-                </h3>
-                <p className="text-xs text-slate-500">Type or record what you want from this shop.</p>
+              <div className="mb-4 text-center">
+                <h3 className="font-black text-slate-800 text-lg">Special Request?</h3>
+                <p className="text-xs text-slate-500">Type or hold mic to record items</p>
               </div>
               
               <div className="space-y-3">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-4 py-2 border border-slate-200">
+                {/* Text Box */}
+                <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-4 py-1 border border-slate-200 focus-within:border-slate-900 transition-all">
                   <input 
                     type="text" 
                     value={customRequest}
                     onChange={(e) => setCustomRequest(e.target.value)}
-                    placeholder="e.g. 1kg Green Chillies..." 
-                    className="flex-1 bg-transparent text-sm outline-none py-2 text-slate-800"
+                    placeholder="e.g. 2kg Sugar..." 
+                    className="flex-1 bg-transparent text-sm outline-none py-3 text-slate-800"
                   />
                   <button 
                     onClick={() => addCustomToCart(selectedShop.name)}
                     className="p-2 bg-slate-900 text-white rounded-xl active:scale-90 transition-all"
                   >
-                    <Plus size={16} />
+                    <Plus size={20} />
                   </button>
                 </div>
                 
+                {/* Voice Button */}
                 <button 
-                  onClick={() => alert("Voice Recording Started...")}
-                  className="w-full py-4 bg-blue-50 text-blue-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 border border-blue-100 active:scale-95 transition-all"
+                  onMouseDown={() => setIsRecording(true)}
+                  onMouseUp={() => { setIsRecording(false); addCustomToCart(selectedShop.name, "Voice Note Order 🎙️"); }}
+                  onTouchStart={() => setIsRecording(true)}
+                  onTouchEnd={() => { setIsRecording(false); addCustomToCart(selectedShop.name, "Voice Note Order 🎙️"); }}
+                  className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-4 border transition-all duration-300 relative overflow-hidden ${
+                    isRecording 
+                    ? "bg-red-50 border-red-300 text-red-600 scale-95" 
+                    : "bg-blue-50 border-blue-100 text-blue-600"
+                  }`}
                 >
-                  <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center animate-pulse"><Mic size={16} /></div>
-                  Record Voice Note
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                    isRecording ? "bg-red-600 text-white animate-pulse" : "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                  }`}>
+                    <Mic size={20} />
+                  </div>
+                  <span className="uppercase tracking-widest text-xs font-black">
+                    {isRecording ? "Recording Now..." : "Hold to Record Voice"}
+                  </span>
                 </button>
+                
+                {isRecording && (
+                   <p className="text-[10px] text-center text-red-500 font-bold animate-bounce uppercase tracking-tighter">
+                     Speak clearly • Release to save
+                   </p>
+                )}
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Cart Drawer & Place Order Button */}
+      {/* Cart Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm shadow-2xl" onClick={() => setIsCartOpen(false)} />
@@ -170,22 +208,20 @@ export default function CustomerPage() {
             </div>
 
             <div className="space-y-6 mb-8">
-              {cart.length === 0 ? <div className="text-center py-10 font-bold text-slate-300 tracking-widest">EMPTY BASKET</div> : 
+              {cart.length === 0 ? <div className="text-center py-10 font-bold text-slate-300 tracking-widest">NO ITEMS ADDED</div> : 
                 Object.keys(groupedCart).map(shop => (
                   <div key={shop} className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
                     <p className="text-[10px] font-black text-green-600 uppercase mb-4 tracking-widest flex items-center gap-2">
                        <Store size={14}/> {shop}
                     </p>
                     {groupedCart[shop].map((item: any) => (
-                      <div key={item.cartId} className="flex justify-between items-center mb-3 bg-white p-3 rounded-2xl shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-bold ${item.isCustom ? 'text-blue-600 italic' : 'text-slate-800'}`}>
-                            {item.isCustom ? "📝 " : ""} {item.name}
-                          </span>
-                        </div>
+                      <div key={item.cartId} className="flex justify-between items-center mb-3 bg-white p-4 rounded-2xl shadow-sm">
+                        <span className={`text-sm font-bold ${item.isCustom ? 'text-blue-600 italic' : 'text-slate-800'}`}>
+                          {item.name}
+                        </span>
                         <div className="flex items-center gap-4">
-                          <span className="font-black text-xs">{item.price > 0 ? `Rs ${item.price}` : 'TBD'}</span>
-                          <button onClick={() => removeFromCart(item.cartId)} className="text-red-400 p-1"><Trash2 size={16}/></button>
+                          <span className="font-black text-xs text-slate-900">{item.price > 0 ? `Rs ${item.price}` : 'TBD'}</span>
+                          <button onClick={() => removeFromCart(item.cartId)} className="text-red-400 p-1 active:scale-75 transition-all"><Trash2 size={18}/></button>
                         </div>
                       </div>
                     ))}
@@ -197,14 +233,14 @@ export default function CustomerPage() {
             {cart.length > 0 && (
               <div className="border-t pt-6 space-y-4">
                 <div className="flex justify-between items-center px-4">
-                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Estimated Total</span>
+                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Bill</span>
                   <span className="text-3xl font-black text-slate-900">Rs {total}</span>
                 </div>
                 <button 
                   onClick={handlePlaceOrder}
                   className="w-full bg-green-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-green-100 active:scale-95 transition-all"
                 >
-                  CONFIRM ORDER
+                  PLACE ORDER
                 </button>
               </div>
             )}
@@ -212,7 +248,7 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* Persistent View Cart Button */}
+      {/* Floating Checkout Button */}
       {cart.length > 0 && !isCartOpen && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-md">
           <button onClick={() => setIsCartOpen(true)} className="w-full bg-slate-900 text-white p-5 rounded-[2.2rem] flex justify-between items-center shadow-2xl active:scale-95 transition-all">
@@ -220,7 +256,7 @@ export default function CustomerPage() {
                <ShoppingBag size={18} className="text-green-500" /> {cart.length} ITEMS
             </span>
             <span className="bg-white/10 px-5 py-2 rounded-2xl text-[10px] font-black tracking-widest uppercase">
-              Checkout • Rs {total}
+              View Cart • Rs {total}
             </span>
           </button>
         </div>
