@@ -10,7 +10,7 @@ export default function RiderPage() {
 
   // Function to sync data from LocalStorage
   const syncOrder = () => {
-    const data = localStorage.getItem('active_order');
+    const data = localStorage.getItem('latestOrder');
     if (data) {
       setOrder(JSON.parse(data));
     } else {
