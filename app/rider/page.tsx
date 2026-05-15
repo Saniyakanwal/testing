@@ -1,101 +1,131 @@
 "use client";
-import React from 'react';
-import { Bike, MapPin, Phone, MessageCircle, CheckCircle2, Mic } from 'lucide-react';
-
-const MOCK_ORDER = {
-  customer: "Saniya K.",
-  address: "Block 13, Gulshan-e-Iqbal, Karachi",
-  items: [
-    { name: "Potato", price: 80, unit: "1 kg", shopName: "Sabzi Mandi" },
-    { name: "Milk", price: 210, unit: "1 Ltr", shopName: "Daily Dairy" },
-  ],
-  custom: [
-    { shopName: "Sabzi Mandi", text: "Bhai tamatar laal hon aur sakht hon.", type: "text" }
-  ]
-};
+import React, { useState, useEffect } from 'react';
+import { 
+  Package, Mic, Play, MessageSquare, CheckCircle, 
+  User, MapPin, Phone, ChevronRight, DollarSign 
+} from 'lucide-react';
 
 export default function RiderPage() {
-  const shops = Array.from(new Set(MOCK_ORDER.items.map(i => i.shopName)));
+  const [order, setOrder] = useState<any>(null);
+  const [responses, setResponses] = useState<{ [key: string]: string }>({});
+
+  // Customer ka order data uthana
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('latestOrder');
+    if (savedOrder) {
+      setOrder(JSON.parse(savedOrder));
+    }
+  }, []);
+
+  const handlePriceUpdate = (cartId: number, price: string) => {
+    setResponses({ ...responses, [cartId]: price });
+  };
+
+  if (!order) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-10 text-center">
+        <div>
+          <Package size={64} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+          <h2 className="text-xl font-bold text-slate-500">Waiting for new orders...</h2>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white pb-20">
-      <header className="p-6 bg-yellow-400 text-black flex justify-between items-center rounded-b-[40px] shadow-2xl">
-        <div>
-          <h1 className="text-2xl font-black italic tracking-tighter">NEW JOB</h1>
-          <p className="text-xs font-bold opacity-70 flex items-center gap-1">
-            <Bike size={14} /> ACTIVE ORDER #4521
-          </p>
+    <div className="min-h-screen bg-slate-900 text-white pb-20">
+      {/* Header */}
+      <div className="bg-slate-800 p-6 rounded-b-[3rem] shadow-2xl border-b border-slate-700">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <span className="bg-green-500/20 text-green-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Active Task</span>
+            <h1 className="text-3xl font-black mt-2">New Delivery</h1>
+          </div>
+          <div className="w-12 h-12 bg-slate-700 rounded-2xl flex items-center justify-center border border-slate-600">
+            <User size={24} className="text-slate-300" />
+          </div>
         </div>
-        <div className="h-12 w-12 bg-black/10 rounded-full flex items-center justify-center">
-          <CheckCircle2 size={30} />
+        
+        <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-3xl border border-white/5">
+          <div className="p-3 bg-blue-600 rounded-2xl"><MapPin size={20}/></div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Customer Location</p>
+            <p className="text-sm font-bold">Gulshan-e-Iqbal, Block 13-D, Karachi</p>
+          </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-2xl mx-auto p-4 -mt-6">
-        {/* Customer Detail Card */}
-        <div className="bg-zinc-800 rounded-3xl p-5 shadow-xl border border-zinc-700 mb-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-yellow-400">{MOCK_ORDER.customer}</h2>
-              <p className="text-sm text-zinc-400 flex items-center gap-1 mt-1">
-                <MapPin size={14} className="text-red-500" /> {MOCK_ORDER.address}
-              </p>
-            </div>
-            <button className="p-3 bg-zinc-700 rounded-2xl text-yellow-400 active:scale-90 transition-all">
-              <Phone size={20} />
-            </button>
+      <main className="p-5 space-y-6">
+        {/* Cart Items Section */}
+        <section>
+          <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] px-2 mb-4">Order Details ({order.items.length})</h2>
+          
+          <div className="space-y-4">
+            {order.items.map((item: any) => (
+              <div key={item.cartId} className={`p-5 rounded-[2.5rem] border ${item.isCustom ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-800 border-slate-700'}`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.isCustom ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {item.isCustom ? (item.name.includes("Voice") ? <Mic size={20}/> : <MessageSquare size={20}/>) : <Package size={20}/>}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg">{item.name}</h3>
+                      <p className="text-xs text-slate-400 uppercase font-bold tracking-tighter">{item.shopName}</p>
+                    </div>
+                  </div>
+                  {!item.isCustom && <span className="font-black text-green-400">Rs {item.price}</span>}
+                </div>
+
+                {/* Rider Action for Custom/Voice Items */}
+                {item.isCustom && (
+                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
+                    {item.name.includes("Voice") && (
+                      <button className="w-full py-3 bg-blue-600 rounded-2xl flex items-center justify-center gap-3 font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-900/50">
+                        <Play size={16} fill="white" /> LISTEN VOICE NOTE
+                      </button>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <div className="flex-1 bg-slate-900 rounded-2xl px-4 py-3 border border-slate-700 flex items-center gap-2">
+                        <DollarSign size={16} className="text-green-500"/>
+                        <input 
+                          type="number" 
+                          placeholder="Enter Price..." 
+                          className="bg-transparent outline-none text-sm w-full"
+                          onChange={(e) => handlePriceUpdate(item.cartId, e.target.value)}
+                        />
+                      </div>
+                      <button className="p-4 bg-green-600 rounded-2xl text-white active:scale-90 transition-all shadow-lg shadow-green-900/50">
+                        <CheckCircle size={20}/>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 italic px-2">Rider will confirm price after reaching shop</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Total Summary */}
+        <div className="bg-gradient-to-br from-green-600 to-green-700 p-8 rounded-[3rem] shadow-xl">
+          <div className="flex justify-between items-center text-white/80 text-xs font-black uppercase tracking-widest mb-2">
+            <span>Customer Total</span>
+            <span>Est. Bill</span>
+          </div>
+          <div className="flex justify-between items-end">
+            <h2 className="text-4xl font-black italic">Rs {order.total}</h2>
+            <button className="p-4 bg-white text-green-600 rounded-full shadow-lg"><Phone size={20}/></button>
           </div>
         </div>
 
-        {/* Shop-wise Tasks */}
-        <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest ml-2 mb-3">Shopping Checklist</h3>
-        
-        <div className="space-y-4">
-          {shops.map((shop) => (
-            <div key={shop} className="bg-zinc-800 rounded-3xl overflow-hidden border border-zinc-700">
-              <div className="bg-zinc-700/50 px-5 py-3 flex justify-between items-center">
-                <span className="font-bold text-yellow-400 tracking-wide uppercase text-xs">{shop}</span>
-                <span className="text-[10px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-black">PENDING</span>
-              </div>
-              
-              <div className="p-5 space-y-3">
-                {MOCK_ORDER.items.filter(i => i.shopName === shop).map((item, idx) => (
-                  <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded-md border-zinc-600 bg-zinc-900 text-yellow-400 focus:ring-0 focus:ring-offset-0" />
-                    <span className="text-zinc-300 group-hover:text-white transition-colors">
-                      {item.name} <span className="text-zinc-500 text-sm">({item.unit})</span>
-                    </span>
-                  </label>
-                ))}
-
-                {/* Custom Instructions */}
-                {MOCK_ORDER.custom.filter(c => c.shopName === shop).map((req, i) => (
-                  <div key={i} className="mt-4 p-4 bg-yellow-400/10 border border-yellow-400/20 rounded-2xl">
-                    <p className="text-[10px] text-yellow-400 font-black uppercase mb-1">Customer Note:</p>
-                    <p className="text-sm italic text-zinc-300">"{req.text}"</p>
-                    
-                    <div className="flex gap-2 mt-3">
-                      <button className="flex-1 bg-zinc-700 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-                        <Mic size={14}/> Voice Reply
-                      </button>
-                      <button className="flex-1 bg-zinc-700 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-                        <MessageCircle size={14}/> Chat
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </main>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md">
-        <button className="w-full bg-yellow-400 text-black font-black py-4 rounded-2xl shadow-[0_20px_50px_rgba(234,179,8,0.3)] active:scale-95 transition-all">
-          COMPLETE SHOPPING & DELIVER
+        <button 
+          onClick={() => alert("Order marked as Picked Up!")}
+          className="w-full py-6 bg-white text-slate-900 rounded-[2.5rem] font-black text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3"
+        >
+          START DELIVERY <ChevronRight size={24}/>
         </button>
-      </div>
+      </main>
     </div>
   );
 }
