@@ -90,8 +90,34 @@ export default function RiderAbsoluteFixPage() {
   };
 
   // 4. Order Confirm & Redirect
-  const handleConfirmOrder = () => {
-    alert("Order Completed Successfully! Going back.");
+  // Finalize Convo and Send To Vercel Bot (Using your exact same link)
+  const handleConfirmOrder = async () => {
+    const finalConvoData = {
+      action: "rider_submit", // Bot ko batane ke liye ke yeh rider ka response hai
+      orderId: order.orderId,
+      totalBill: order.total,
+      conversation: order.items.map((item: any, i: number) => ({
+        shopName: item.shopName,
+        itemName: item.name,
+        isCustom: item.isCustom || false,
+        customerVoiceData: item.audioData || null,   // Customer ki voice (Base64 text format)
+        riderVoiceResponse: riderAudioURLs[i] || null, // Rider ki voice (Base64 text format)
+        riderTextResponse: item.riderTextReply || null // Rider ka text reply agar ho
+      }))
+    };
+
+    // ---- AAPKI SAME VERCEL BOT LINK INTEGRATION YAHAN HAI ----
+    try {
+      await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalConvoData),
+      });
+      alert("Convo analyzed by Bot! Shop items listing updated.");
+    } catch (error) {
+      console.error("Finalization Bot API Error:", error);
+    }
+
     localStorage.removeItem('latestOrder');
     setOrder(null);
     router.push('/'); 

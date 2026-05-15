@@ -108,17 +108,32 @@ export default function CustomerPage() {
     (acc[item.shopName] = acc[item.shopName] || []).push(item);
     return acc;
   }, {});
-
-  const handlePlaceOrder = () => {
+ // Send Data to Bot on Order Place (Updated with your Vercel Link)
+  const handlePlaceOrder = async () => {
     setIsOrdering(true);
     const orderData = {
       orderId: "#ORD-" + Math.floor(1000 + Math.random() * 9000),
       items: cart,
       total: total,
     };
+    
     localStorage.setItem('latestOrder', JSON.stringify(orderData));
     
-    // Redirect to Rider Page after short delay
+    // ---- AAPKI VERCEL BOT LINK INTEGRATION YAHAN HAI ----
+    try {
+      await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: "customer_submit", // Bot ko batane ke liye ke yeh customer ka order hai
+          ...orderData
+        }),
+      });
+      console.log("Order details successfully sent to Bot!");
+    } catch (error) {
+      console.error("Bot API Error:", error);
+    }
+    
     setTimeout(() => { 
       router.push('/rider'); 
     }, 1500);
