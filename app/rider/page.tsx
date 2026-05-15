@@ -14,6 +14,7 @@ export default function RiderAbsoluteFixPage() {
   // Rider Audio Recording States
   const [isRecordingRider, setIsRecordingRider] = useState<number | null>(null);
   const [riderAudioURLs, setRiderAudioURLs] = useState<{[key: number]: string}>({});
+  const [riderBase64Audio, setRiderBase64Audio] = useState<{[key: number]: string}>({}); // 🔥 NEW: Base64 Storage for Backend
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -22,14 +23,12 @@ export default function RiderAbsoluteFixPage() {
     if (data) setOrder(JSON.parse(data));
   }, []);
 
-  // 1. Asli Customer Voice Play karne ka function (Agar blob/base64 data available ho)
+  // 1. Customer Voice Play Function
   const playCustomerVoice = (item: any) => {
     if (item.audioData) {
-      // Agar Customer page se asli audio file (Base64) aayi hai toh wo chalegi
       const audio = new Audio(item.audioData);
       audio.play().catch(e => console.error("Audio play error:", e));
     } else {
-      // Fallback agar sirf text hai
       window.speechSynthesis.cancel(); 
       const cleanText = item.name.replace("Voice Note Order 🎙️", "");
       const utterance = new SpeechSynthesisUtterance(cleanText || "Custom Voice Request");
@@ -38,7 +37,7 @@ export default function RiderAbsoluteFixPage() {
     }
   };
 
-  // 2. Rider ka Voice Response asli RECORD karne ka logic (Bina kisi API ke, Direct Browser Mic Storage)
+  // 2. Rider Voice Response Recording Logic (Fixed with Base64 Conversion)
   const startRiderRecording = async (index: number) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -54,15 +53,23 @@ export default function RiderAbsoluteFixPage() {
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
+        const audioUrl = URL.createObjectURL(audioBlob); // Only for local UI playing
         
-        // Rider ki voice URL save karna taake wo sun sake
+        // Local preview updates
         setRiderAudioURLs(prev => ({ ...prev, [index]: audioUrl }));
-        
-        // Order object mein bhi response state update kar dena
-        const updatedItems = [...order.items];
-        updatedItems[index].riderVoiceFile = audioUrl; 
-        setOrder({ ...order, items: updatedItems });
+
+        // 🔥 CRITICAL FIX: Convert Rider blob to Base64 text string for Vercel/Express
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          setRiderBase64Audio(prev => ({ ...prev, [index]: base64Audio }));
+          
+          // Sync with active state memory
+          const updatedItems = [...order.items];
+          updatedItems[index].riderVoiceFile = base64Audio; 
+          setOrder({ ...order, items: updatedItems });
+        };
       };
 
       mediaRecorder.start();
@@ -77,42 +84,51 @@ export default function RiderAbsoluteFixPage() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecordingRider(null);
-      // Stream tracks ko close karna taake red light/mic icon browser se hat jaye
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
   };
 
-  // 3. Rider apni Record ki hui Voice ko khud sune ga
+  // 3. Play Rider Local Audio Preview
   const playOwnRecordedVoice = (audioUrl: string) => {
     if (!audioUrl) return;
     const audio = new Audio(audioUrl);
     audio.play().catch(e => console.error("Error playing rider voice:", e));
   };
 
-  // 4. Order Confirm & Redirect
-  // Finalize Convo and Send To Vercel Bot (Using your exact same link)
+  // 4. Order Confirm & Redirect (Fixed Payload with Required 'text' wrapper)
   const handleConfirmOrder = async () => {
+    // Rider responses ko plain context text mein badalna taake Gemini direct read kar sake
+    const riderConversationsText = order.items.map((item: any, i: number) => {
+      const status = riderBase64Audio[i] ? "Rider sent voice response" : "No rider response yet";
+      return `Product: ${item.name} from ${item.shopName} (${status})`;
+    }).join(" | ");
+
     const finalConvoData = {
-      action: "rider_submit", // Bot ko batane ke liye ke yeh rider ka response hai
+      // ⚡ VERCEL ROUTE EXPECTATION FIX: Is key ka hona lazmi hai bridge ko chalane ke liye
+      text: `Rider closed Order ${order.orderId}. Context: ${riderConversationsText}`,
+      action: "rider_submit", 
       orderId: order.orderId,
       totalBill: order.total,
       conversation: order.items.map((item: any, i: number) => ({
         shopName: item.shopName,
         itemName: item.name,
         isCustom: item.isCustom || false,
-        customerVoiceData: item.audioData || null,   // Customer ki voice (Base64 text format)
-        riderVoiceResponse: riderAudioURLs[i] || null, // Rider ki voice (Base64 text format)
-        riderTextResponse: item.riderTextReply || null // Rider ka text reply agar ho
+        customerVoiceData: item.audioData || null,   
+        riderVoiceResponse: riderBase64Audio[i] || null, // 🔥 Pass hotay hue ab clean Base64 string jayegi, temporary blob URL nahi!
+        riderTextResponse: item.riderTextReply || null 
       }))
     };
 
-    // ---- AAPKI SAME VERCEL BOT LINK INTEGRATION YAHAN HAI ----
+    // ---- LIVE SYNC PROCESSOR ----
     try {
-      await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalConvoData),
       });
+      
+      const resJSON = await response.json();
+      console.log("Rider Sync Success Data:", resJSON);
       alert("Convo analyzed by Bot! Shop items listing updated.");
     } catch (error) {
       console.error("Finalization Bot API Error:", error);
@@ -151,12 +167,10 @@ export default function RiderAbsoluteFixPage() {
 
           return (
             <div key={i} className="bg-white border-2 border-slate-50 rounded-[2.5rem] p-6 shadow-sm relative overflow-hidden">
-              {/* Shop Badge */}
               <div className="absolute top-0 right-0 bg-slate-900 text-white text-[8px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">
                 {item.shopName}
               </div>
 
-              {/* Product Layout (List se add huye items bilkul same fixed rahenge) */}
               <div className="mb-4 pt-2">
                 <h3 className={`text-lg font-black leading-tight ${item.isCustom ? 'text-blue-600' : 'text-slate-800'}`}>
                   {item.name}
@@ -166,10 +180,9 @@ export default function RiderAbsoluteFixPage() {
                 </p>
               </div>
 
-              {/* ----------------- SECTOR: AGAR CUSTOMER KI VOICE VALI REQUEST HAI ----------------- */}
+              {/* CUSTOMER VOICE CONTAINER */}
               {isVoiceRequest && (
                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
-                  {/* Listen Customer Button */}
                   <button 
                     onClick={() => playCustomerVoice(item)}
                     className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all"
@@ -177,7 +190,7 @@ export default function RiderAbsoluteFixPage() {
                     <Volume2 size={16} /> Customer Ki Voice Suno
                   </button>
 
-                  {/* Rider Voice Record Section */}
+                  {/* Rider Voice Record Actions */}
                   <div className="space-y-2">
                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Your Voice Response</p>
                     <div className="flex gap-2">
@@ -197,7 +210,6 @@ export default function RiderAbsoluteFixPage() {
                         </button>
                       )}
 
-                      {/* Rider apni voice sun sake */}
                       {riderAudioURLs[i] && (
                         <button 
                           onClick={() => playOwnRecordedVoice(riderAudioURLs[i])}
@@ -208,14 +220,13 @@ export default function RiderAbsoluteFixPage() {
                         </button>
                       )}
                     </div>
-                    {riderAudioURLs[i] && (
-                      <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Your audio response recorded successfully!</p>
+                    {riderBase64Audio[i] && (
+                      <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Your audio response converted & saved successfully!</p>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* ----------------- SECTOR: NORMAL PRODUCT FROM LIST ----------------- */}
               {!item.isCustom && (
                 <div className="mt-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">✓ Fixed Item (No Actions Needed)</p>
@@ -227,7 +238,6 @@ export default function RiderAbsoluteFixPage() {
         })}
       </main>
 
-      {/* Confirm and Back Button */}
       <div className="fixed bottom-8 left-6 right-6 max-w-md mx-auto">
         <button 
           onClick={handleConfirmOrder}

@@ -108,28 +108,48 @@ export default function CustomerPage() {
     (acc[item.shopName] = acc[item.shopName] || []).push(item);
     return acc;
   }, {});
- // Send Data to Bot on Order Place (Updated with your Vercel Link)
+ // Send Data to Bot on Order Place (Fixed Integration)
   const handlePlaceOrder = async () => {
     setIsOrdering(true);
+    
+    const orderId = "#ORD-" + Math.floor(1000 + Math.random() * 9000);
     const orderData = {
-      orderId: "#ORD-" + Math.floor(1000 + Math.random() * 9000),
+      orderId: orderId,
       items: cart,
       total: total,
     };
     
     localStorage.setItem('latestOrder', JSON.stringify(orderData));
     
-    // ---- AAPKI VERCEL BOT LINK INTEGRATION YAHAN HAI ----
+    // ⚡ SANIYA FIX: Cart ke saare items ko aik text string mein convert karna
+    // Taake Express bot aur Gemini isay poori tarah samajh sakein
+    const itemsText = cart.map(item => {
+      if (item.name.includes("Voice Note Order")) {
+        // Agar voice note hai, toh bhejte hain ke custom voice aayi hai 
+        // (Base64 audio aap localStorage se rider side par direct access kar sakti hain)
+        return "Voice request generated";
+      }
+      return `${item.name} (${item.unit || '1 unit'})`;
+    }).join(", ");
+
+    const finalPayload = {
+      text: `Order ${orderId}: ${itemsText}. Total bill is Rs ${total}`,
+      action: "customer_submit",
+      ...orderData
+    };
+    
+    // ---- AAPKI VERCEL BOT LINK INTEGRATION ----
     try {
-      await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: "customer_submit", // Bot ko batane ke liye ke yeh customer ka order hai
-          ...orderData
-        }),
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(finalPayload), // Ab isme strict 'text' field mojood hai!
       });
-      console.log("Order details successfully sent to Bot!");
+      
+      const resData = await response.json();
+      console.log("Bot Response successfully received:", resData);
     } catch (error) {
       console.error("Bot API Error:", error);
     }
@@ -138,7 +158,6 @@ export default function CustomerPage() {
       router.push('/rider'); 
     }, 1500);
   };
-
   // UI for Order Success
   if (isOrdering) {
     return (
