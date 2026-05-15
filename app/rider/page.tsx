@@ -1,139 +1,130 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { 
-  Mic, Play, Send, Store, Package, MessageSquare, 
-  CheckCircle, Volume2, Trash2, StopCircle, User 
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Mic, Play, Send, Package, MessageSquare, CheckCircle, Volume2, Trash2 } from 'lucide-react';
 
-export default function RiderFreshPage() {
+export default function RiderMobileAudio() {
   const [order, setOrder] = useState<any>(null);
-  const [riderVoice, setRiderVoice] = useState<string | null>(null); // Rider ki recorded voice
   const [isRecording, setIsRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState<string | null>(null);
+  
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const savedOrder = localStorage.getItem('latestOrder');
     if (savedOrder) setOrder(JSON.parse(savedOrder));
   }, []);
 
-  // Customer ki voice sunne ke liye
-  const playCustomerVoice = () => {
-    alert("Playing Customer's Voice Note...");
+  // --- Real Audio Logic for Mobile ---
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Mobile support ke liye specific audio type
+      const options = { mimeType: 'audio/webm' };
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/mp4'; // For Safari/iOS
+      }
+
+      mediaRecorder.current = new MediaRecorder(stream, options);
+      audioChunks.current = [];
+
+      mediaRecorder.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.current.push(e.data);
+      };
+
+      mediaRecorder.current.onstop = () => {
+        const audioBlob = new Blob(audioChunks.current, { type: options.mimeType });
+        const url = URL.createObjectURL(audioBlob);
+        setAudioURL(url);
+      };
+
+      mediaRecorder.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      alert("Please allow Microphone access in your mobile settings!");
+    }
   };
 
-  // Rider ki apni recorded voice sunne ke liye
-  const playMyVoice = () => {
-    if(riderVoice) alert("Playing your recorded voice back to you...");
+  const stopRecording = () => {
+    if (mediaRecorder.current && isRecording) {
+      mediaRecorder.current.stop();
+      setIsRecording(false);
+      // Mic off karne ke liye tracks stop karna zaroori hai
+      mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
+    }
   };
 
-  const handleFinishOrder = () => {
-    alert("Order Completed! Moving to next delivery.");
+  const playAudio = (url: string | null) => {
+    if (!url) {
+      alert("No audio file found!");
+      return;
+    }
+    const audio = new Audio(url);
+    audio.play().catch(e => alert("Audio Playback Error: Try clicking the button again."));
   };
 
-  if (!order) return <div className="p-10 text-center font-bold">No Orders Found.</div>;
+  if (!order) return <div className="p-10 text-center">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] pb-24 font-sans">
-      {/* WhatsApp Style Header */}
-      <div className="bg-[#008069] p-4 text-white sticky top-0 z-20 flex items-center gap-4 shadow-md">
-        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-[#008069]">
-          <User size={24} />
-        </div>
-        <div>
-          <h1 className="font-bold text-sm">Customer Order</h1>
-          <p className="text-[10px] opacity-80 italic">Active Delivery - Karachi</p>
-        </div>
+    <div className="min-h-screen bg-[#f0f2f5] pb-24">
+      <div className="bg-[#008069] p-4 text-white sticky top-0 z-20 flex items-center gap-3">
+        <h1 className="font-bold">Rider Order Panel</h1>
       </div>
 
       <div className="p-4 space-y-4">
         {order.items.map((item: any) => (
-          <div key={item.cartId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            
-            {/* ITEM BASIC INFO */}
-            <div className="p-4 flex justify-between items-center border-b border-slate-50">
+          <div key={item.cartId} className="bg-white rounded-2xl shadow-sm border border-slate-200">
+            {/* Item Info */}
+            <div className="p-4 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
+                <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
                   {item.isCustom ? <MessageSquare size={18}/> : <Package size={18}/>}
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">{item.name}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">
-                    {item.shopName}
-                  </p>
-                </div>
+                <div className="font-bold text-sm text-slate-800">{item.name}</div>
               </div>
-              
-              {/* FIXED PRICE: Jo wahan se add huye unke liye */}
-              {!item.isCustom && (
-                <div className="text-right font-black text-green-600 text-sm">
-                  Rs {item.price}
-                </div>
-              )}
+              {!item.isCustom && <div className="text-green-600 font-black">Rs {item.price}</div>}
             </div>
 
-            {/* CUSTOM INTERACTION: Sirf Voice/Text items ke liye */}
+            {/* Voice Control for Custom Items */}
             {item.isCustom && (
-              <div className="p-4 bg-slate-50 space-y-4">
+              <div className="p-4 bg-slate-50 border-t border-slate-100 space-y-3">
                 
-                {/* 1. Customer Voice (Rider Sun Sakta Hai) */}
-                {item.name.includes("Voice") && (
-                  <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200">
-                    <button onClick={playCustomerVoice} className="w-8 h-8 bg-[#25d366] text-white rounded-full flex items-center justify-center">
-                      <Play size={14} fill="white" />
-                    </button>
-                    <div className="flex-1 h-1 bg-slate-200 rounded-full">
-                      <div className="w-1/2 h-full bg-[#25d366] rounded-full" />
-                    </div>
-                    <span className="text-[10px] text-slate-400">0:15</span>
-                    <Volume2 size={14} className="text-slate-300" />
-                  </div>
-                )}
+                {/* 1. Customer ki Voice (Simulation Button) */}
+                <button 
+                  onClick={() => alert("Customer's voice playback triggered")}
+                  className="w-full flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200"
+                >
+                  <Play size={16} className="text-blue-500" fill="currentColor"/>
+                  <span className="text-xs font-bold text-slate-500 uppercase">Listen Customer Voice</span>
+                </button>
 
-                {/* 2. Rider ka Reply (Text + Voice Recording) */}
+                {/* 2. Rider Recording */}
                 <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="Type reply..." 
-                      className="flex-1 bg-white border border-slate-200 rounded-full px-4 py-2 text-xs outline-none focus:border-[#008069]"
-                    />
-                    <button className="bg-[#008069] text-white p-2.5 rounded-full shadow-md">
-                      <Send size={14} />
-                    </button>
-                  </div>
+                  <button 
+                    onPointerDown={startRecording}
+                    onPointerUp={stopRecording}
+                    className={`w-full py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border shadow-sm transition-all active:scale-95 touch-none ${
+                      isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-[#008069] border-[#008069]'
+                    }`}
+                  >
+                    <Mic size={18} /> {isRecording ? "RECORDING..." : "HOLD TO RECORD"}
+                  </button>
 
-                  {/* Rider Recording Control */}
-                  <div className="flex flex-col gap-2">
-                    <button 
-                      onMouseDown={() => setIsRecording(true)}
-                      onMouseUp={() => { setIsRecording(false); setRiderVoice("recorded"); }}
-                      className={`w-full py-3 rounded-xl font-bold text-[11px] flex items-center justify-center gap-2 border transition-all ${
-                        isRecording 
-                        ? 'bg-red-500 text-white border-red-600 animate-pulse' 
-                        : 'bg-white text-[#008069] border-[#008069]'
-                      }`}
-                    >
-                      <Mic size={16} /> {isRecording ? "Recording... (Release to Stop)" : "Hold to Record Reply"}
-                    </button>
-
-                    {/* Rider apni voice sun sake (WhatsApp style preview) */}
-                    {riderVoice && !isRecording && (
-                      <div className="flex items-center gap-2 bg-green-50 p-2 rounded-xl border border-green-100 mt-1">
-                        <button onClick={playMyVoice} className="p-2 bg-green-600 text-white rounded-full">
-                          <Play size={12} fill="white"/>
-                        </button>
-                        <p className="text-[10px] font-bold text-green-700 flex-1">Your Voice Note Ready</p>
-                        <button onClick={() => setRiderVoice(null)} className="text-slate-400 p-1">
-                          <Trash2 size={14}/>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Manual Price Entry for Custom Item */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <span className="text-[10px] font-bold text-slate-500">Shop Price:</span>
-                    <input type="number" placeholder="Enter Rs" className="w-24 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                  </div>
+                  {/* Rider Preview (Apni Voice Sun'na) */}
+                  {audioURL && (
+                    <div className="flex items-center gap-3 bg-green-100 p-3 rounded-xl border border-green-200">
+                      <button 
+                        onClick={() => playAudio(audioURL)}
+                        className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-md"
+                      >
+                        <Play size={16} fill="white" />
+                      </button>
+                      <div className="flex-1 text-[10px] font-black text-green-800">PREVIEW YOUR RECORDING</div>
+                      <button onClick={() => setAudioURL(null)} className="text-red-500"><Trash2 size={16}/></button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -141,18 +132,9 @@ export default function RiderFreshPage() {
         ))}
       </div>
 
-      {/* FINISH ORDER BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white p-4 border-t border-slate-200 flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase">Estimated Total</p>
-          <p className="text-xl font-black text-slate-800">Rs {order.total}</p>
-        </div>
-        <button 
-          onClick={handleFinishOrder}
-          className="bg-[#008069] text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-all flex items-center gap-2"
-        >
-          FINISH ORDER <CheckCircle size={18}/>
-        </button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white p-4 border-t flex items-center justify-between">
+        <p className="font-black text-lg">Rs {order.total}</p>
+        <button className="bg-[#008069] text-white px-8 py-3 rounded-xl font-bold shadow-lg">FINISH ORDER</button>
       </div>
     </div>
   );
