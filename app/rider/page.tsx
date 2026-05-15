@@ -4,68 +4,107 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Mic, Play, Bike, CheckCircle2, 
-  Volume2, RefreshCw, Trash2, Headphones 
+  Volume2, RefreshCw, Trash2, Headphones, Send 
 } from 'lucide-react';
 
-export default function RiderFreshPage() {
+export default function RiderFinalFixedPage() {
   const router = useRouter();
   const [order, setOrder] = useState<any>(null);
   const [activeMic, setActiveMic] = useState<number | null>(null);
+  const [tempPriceInputs, setTempPriceInputs] = useState<{[key: number]: string}>({});
 
   useEffect(() => {
     const data = localStorage.getItem('latestOrder');
     if (data) setOrder(JSON.parse(data));
   }, []);
 
-  // 1. Customer ki Voice Sun-na (Using Text-to-Speech fallback for easy testing)
+  // 1. Customer ki Voice Sun-na (100% Force Play Fix)
   const listenCustomerVoice = (itemName: string) => {
-    window.speechSynthesis.cancel(); // Stop any ongoing speech
-    const utterance = new SpeechSynthesisUtterance(`Customer says: ${itemName}`);
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.cancel(); 
+    const cleanText = itemName.replace("Voice Note Order 🎙️", "Custom Voice Request");
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'en-US'; 
+    utterance.volume = 1.0;
+    utterance.rate = 0.9;   
+    setTimeout(() => { window.speechSynthesis.speak(utterance); }, 50);
   };
 
-  // 2. Rider ka Text Response handle karna
+  // 2. Text Request ka Response handle karna
   const handleTextResponse = (index: number, val: string) => {
     const updatedItems = [...order.items];
     updatedItems[index].riderTextReply = val;
     setOrder({ ...order, items: updatedItems });
   };
 
-  // 3. Rider ka Voice Response Record karna
+  // 3. Price type karke Message ki tarah Send karne ka logic
+  const sendPriceMessage = (index: number) => {
+    const priceValue = tempPriceInputs[index];
+    if (!priceValue || !priceValue.trim()) return;
+
+    const updatedItems = [...order.items];
+    // Price ko chat message format mein save karna
+    updatedItems[index].riderPriceMessage = `Rs. ${priceValue}`;
+    setOrder({ ...order, items: updatedItems });
+    
+    // Input field clear karna
+    setTempPriceInputs(prev => ({ ...prev, [index]: "" }));
+  };
+
+  // 4. Rider Voice Response Record karna (Cross-Browser Webkit Fix)
   const recordVoiceResponse = (index: number) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("Chrome use karein voice record ke liye");
+    if (!SpeechRecognition) return alert("Aapka browser voice support nahi karta. Chrome use karein.");
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
     
-    recognition.onstart = () => setActiveMic(index);
+    setActiveMic(index);
+
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      const updatedItems = [...order.items];
-      updatedItems[index].riderVoiceReply = transcript; // Voice transcript save hui
-      setOrder({ ...order, items: updatedItems });
+      if (transcript) {
+        const updatedItems = [...order.items];
+        updatedItems[index].riderVoiceReply = transcript; 
+        setOrder({ ...order, items: updatedItems });
+      }
     };
-    recognition.onend = () => setActiveMic(null);
-    recognition.start();
+
+    recognition.onerror = (err: any) => {
+      console.error("Recording Error:", err);
+      setActiveMic(null);
+    };
+
+    recognition.onend = () => {
+      setActiveMic(null);
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setActiveMic(null);
+    }
   };
 
-  // 4. Rider apni Record ki hui Voice ko sune ga
+  // 5. Rider apni Voice ko sune ga
   const listenOwnVoice = (recordedText: string) => {
     if (!recordedText) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(`Your recorded response is: ${recordedText}`);
+    const utterance = new SpeechSynthesisUtterance(recordedText);
     utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    utterance.volume = 1.0;
+    utterance.rate = 0.9;
+    setTimeout(() => { window.speechSynthesis.speak(utterance); }, 50);
   };
 
-  // 5. Order Confirm & Redirect to Main Page
+  // 6. Order Confirm & Redirect
   const handleConfirmOrder = () => {
-    alert("Order Finalized! Redirecting to Marketplace...");
+    alert("Order Finalized! Returning to Main Page...");
     localStorage.removeItem('latestOrder');
     setOrder(null);
-    router.push('/'); // Main customer page par wapas redirect
+    router.push('/'); 
   };
 
   if (!order) {
@@ -79,7 +118,7 @@ export default function RiderFreshPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-32">
-      {/* Header */}
+      {/* Navbar */}
       <nav className="sticky top-0 bg-white border-b px-6 py-5 flex justify-between items-center z-50">
         <div className="flex items-center gap-3">
           <div className="bg-green-600 p-2 rounded-xl text-white shadow-md"><Bike size={20} /></div>
@@ -89,10 +128,9 @@ export default function RiderFreshPage() {
       </nav>
 
       <main className="p-6 max-w-md mx-auto space-y-6">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Items from Shop(s)</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Customer Order</p>
 
         {order.items.map((item: any, i: number) => {
-          // Check custom type
           const isVoiceRequest = item.isCustom && item.name.includes("🎙️");
           const isTextRequest = item.isCustom && !item.name.includes("🎙️");
 
@@ -103,7 +141,7 @@ export default function RiderFreshPage() {
                 {item.shopName}
               </div>
 
-              {/* Product Layout */}
+              {/* Product Info */}
               <div className="mb-4 pt-2">
                 <h3 className={`text-lg font-black leading-tight ${item.isCustom ? 'text-blue-600' : 'text-slate-800'}`}>
                   {item.name}
@@ -116,7 +154,7 @@ export default function RiderFreshPage() {
               {/* ----------------- CASE 1: CUSTOMER VOICE REQUEST ----------------- */}
               {isVoiceRequest && (
                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
-                  {/* Listen Customer */}
+                  {/* Listen Customer Button */}
                   <button 
                     onClick={() => listenCustomerVoice(item.name)}
                     className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all"
@@ -124,30 +162,32 @@ export default function RiderFreshPage() {
                     <Volume2 size={16} /> Customer ki Voice Suno
                   </button>
 
-                  {/* Rider Voice Response */}
+                  {/* Rider Voice Record & Display */}
                   <div className="space-y-2">
                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Your Voice Response</p>
                     <div className="flex gap-2">
                       <button 
                         onClick={() => recordVoiceResponse(i)}
-                        className={`flex-1 p-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeMic === i ? 'bg-red-500 text-white animate-pulse' : 'bg-green-600 text-white'}`}
+                        className={`flex-1 p-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeMic === i ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-100' : 'bg-green-600 text-white'}`}
                       >
                         <Mic size={16} /> {activeMic === i ? "Recording..." : "Voice Reply Record"}
                       </button>
 
-                      {/* Listen own voice */}
+                      {/* Listen own voice icon */}
                       {item.riderVoiceReply && (
                         <button 
                           onClick={() => listenOwnVoice(item.riderVoiceReply)}
-                          className="bg-slate-100 text-slate-700 px-4 rounded-2xl flex items-center justify-center active:scale-95"
-                          title="Apni voice suno"
+                          className="bg-slate-100 text-slate-700 px-4 rounded-2xl flex items-center justify-center active:scale-95 border border-slate-200"
                         >
                           <Headphones size={18} />
                         </button>
                       )}
                     </div>
                     {item.riderVoiceReply && (
-                      <p className="text-[11px] font-bold text-green-600 italic ml-1">Recorded: "{item.riderVoiceReply}"</p>
+                      <div className="bg-green-50 p-3 rounded-xl border border-green-100 mt-2">
+                        <p className="text-[10px] font-black text-green-700 uppercase tracking-tight mb-1">Your Voice Text:</p>
+                        <p className="text-xs font-bold text-slate-700">"{item.riderVoiceReply}"</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -155,7 +195,7 @@ export default function RiderFreshPage() {
 
               {/* ----------------- CASE 2: CUSTOMER TEXT REQUEST ----------------- */}
               {isTextRequest && (
-                <div className="mt-6 pt-4 border-t border-slate-100 space-y-2">
+                <div className="mt-6 pt-4 border-t border-slate-100 space-y-3">
                   <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Type Reply to Text Request</p>
                   <input 
                     type="text"
@@ -167,10 +207,37 @@ export default function RiderFreshPage() {
                 </div>
               )}
 
-              {/* ----------------- CASE 3: MANUAL/NORMAL PRODUCT ----------------- */}
+              {/* ----------------- CASE 3: MANUAL/NORMAL PRODUCT (With Price Send Input) ----------------- */}
               {!item.isCustom && (
-                <div className="mt-4 bg-green-50/50 p-3 rounded-2xl border border-green-50 text-center">
-                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">✓ Sorted (No Action Required)</p>
+                <div className="mt-6 pt-4 border-t border-slate-100 space-y-3">
+                  {/* Price Chat Message Show Area */}
+                  {item.riderPriceMessage ? (
+                    <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2">
+                      <div className="bg-green-600 text-white px-5 py-3 rounded-2xl rounded-tr-sm shadow-md max-w-[80%]">
+                        <p className="text-[8px] font-black text-green-200 uppercase tracking-widest mb-0.5">Price Sent</p>
+                        <p className="font-black text-sm">{item.riderPriceMessage}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Send Price Update</p>
+                      <div className="flex gap-2">
+                        <input 
+                          type="number"
+                          placeholder="Type price..."
+                          value={tempPriceInputs[i] || ""}
+                          onChange={(e) => setTempPriceInputs(prev => ({ ...prev, [i]: e.target.value }))}
+                          className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-green-500"
+                        />
+                        <button 
+                          onClick={() => sendPriceMessage(i)}
+                          className="bg-slate-900 text-white px-4 rounded-2xl flex items-center justify-center active:scale-95 transition-all shadow-md"
+                        >
+                          <Send size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -179,7 +246,7 @@ export default function RiderFreshPage() {
         })}
       </main>
 
-      {/* Confirm & Redirect Footer */}
+      {/* Confirm Button */}
       <div className="fixed bottom-8 left-6 right-6 max-w-md mx-auto">
         <button 
           onClick={handleConfirmOrder}
