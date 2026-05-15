@@ -14,7 +14,7 @@ export default function RiderAbsoluteFixPage() {
   // Rider Audio Recording States
   const [isRecordingRider, setIsRecordingRider] = useState<number | null>(null);
   const [riderAudioURLs, setRiderAudioURLs] = useState<{[key: number]: string}>({});
-  const [riderBase64Audio, setRiderBase64Audio] = useState<{[key: number]: string}>({}); // 🔥 NEW: Base64 Storage for Backend
+  const [riderBase64Audio, setRiderBase64Audio] = useState<{[key: number]: string}>({}); 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -37,7 +37,7 @@ export default function RiderAbsoluteFixPage() {
     }
   };
 
-  // 2. Rider Voice Response Recording Logic (Fixed with Base64 Conversion)
+  // 2. Rider Voice Response Recording Logic
   const startRiderRecording = async (index: number) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -53,19 +53,16 @@ export default function RiderAbsoluteFixPage() {
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob); // Only for local UI playing
+        const audioUrl = URL.createObjectURL(audioBlob); 
         
-        // Local preview updates
         setRiderAudioURLs(prev => ({ ...prev, [index]: audioUrl }));
 
-        // 🔥 CRITICAL FIX: Convert Rider blob to Base64 text string for Vercel/Express
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64Audio = reader.result as string;
           setRiderBase64Audio(prev => ({ ...prev, [index]: base64Audio }));
           
-          // Sync with active state memory
           const updatedItems = [...order.items];
           updatedItems[index].riderVoiceFile = base64Audio; 
           setOrder({ ...order, items: updatedItems });
@@ -95,16 +92,15 @@ export default function RiderAbsoluteFixPage() {
     audio.play().catch(e => console.error("Error playing rider voice:", e));
   };
 
-  // 4. Order Confirm & Redirect (Fixed Payload with Required 'text' wrapper)
+  // 4. Order Confirm & Redirect
   const handleConfirmOrder = async () => {
-    // Rider responses ko plain context text mein badalna taake Gemini direct read kar sake
     const riderConversationsText = order.items.map((item: any, i: number) => {
-      const status = riderBase64Audio[i] ? "Rider sent voice response" : "No rider response yet";
-      return `Product: ${item.name} from ${item.shopName} (${status})`;
+      const voiceStatus = riderBase64Audio[i] ? "Voice reply recorded" : "No voice reply";
+      const textStatus = item.riderTextReply ? `Text reply: ${item.riderTextReply}` : "No text reply";
+      return `Product: ${item.name} (${voiceStatus} | ${textStatus})`;
     }).join(" | ");
 
     const finalConvoData = {
-      // ⚡ VERCEL ROUTE EXPECTATION FIX: Is key ka hona lazmi hai bridge ko chalane ke liye
       text: `Rider closed Order ${order.orderId}. Context: ${riderConversationsText}`,
       action: "rider_submit", 
       orderId: order.orderId,
@@ -114,12 +110,11 @@ export default function RiderAbsoluteFixPage() {
         itemName: item.name,
         isCustom: item.isCustom || false,
         customerVoiceData: item.audioData || null,   
-        riderVoiceResponse: riderBase64Audio[i] || null, // 🔥 Pass hotay hue ab clean Base64 string jayegi, temporary blob URL nahi!
-        riderTextResponse: item.riderTextReply || null 
+        riderVoiceResponse: riderBase64Audio[i] || null, 
+        riderTextResponse: item.riderTextReply || null // Syncing Rider Text Reply to Backend
       }))
     };
 
-    // ---- LIVE SYNC PROCESSOR ----
     try {
       const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
         method: 'POST',
@@ -163,10 +158,12 @@ export default function RiderAbsoluteFixPage() {
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Received Order Items</p>
 
         {order.items.map((item: any, i: number) => {
-          const isVoiceRequest = item.isCustom && (item.name.includes("🎙️") || item.audioData);
+          // ⚡ SANIYA FIX: Agar item custom input hai (chahe text ho ya voice), options show hone chahiyen!
+          const showResponseOption = item.isCustom || item.name.includes("🎙️") || item.audioData;
+          const hasVoice = item.audioData || item.name.includes("🎙️");
 
           return (
-            <div key={i} className="bg-white border-2 border-slate-50 rounded-[2.5rem] p-6 shadow-sm relative overflow-hidden">
+            <div key={i} className="bg-white border-2 border-slate-50 rounded-[2.5rem] p-6 shadow-sm relative overflow-hidden mb-4">
               <div className="absolute top-0 right-0 bg-slate-900 text-white text-[8px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">
                 {item.shopName}
               </div>
@@ -176,26 +173,47 @@ export default function RiderAbsoluteFixPage() {
                   {item.name}
                 </h3>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
-                  {item.isCustom ? "Special Request" : `Rs ${item.price || 'Fixed'} • Added from List`}
+                  {item.isCustom ? "✨ Custom Request" : `Rs ${item.price || 'Fixed'} • Added from List`}
                 </p>
               </div>
 
-              {/* CUSTOMER VOICE CONTAINER */}
-              {isVoiceRequest && (
+              {/* ⚡ UNIVERSAL RESPONSE CONTAINER */}
+              {showResponseOption && (
                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
-                  <button 
-                    onClick={() => playCustomerVoice(item)}
-                    className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all"
-                  >
-                    <Volume2 size={16} /> Customer Ki Voice Suno
-                  </button>
+                  
+                  {/* Customer Voice Playback (Only shows if customer actually recorded voice) */}
+                  {hasVoice && (
+                    <button 
+                      type="button"
+                      onClick={() => playCustomerVoice(item)}
+                      className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all mb-2"
+                    >
+                      <Volume2 size={16} /> Customer Ki Voice Suno
+                    </button>
+                  )}
 
-                  {/* Rider Voice Record Actions */}
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Your Voice Response</p>
+                  {/* Rider Action Fields */}
+                  <div className="space-y-3">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Your Response to Customer</p>
+                    
+                    {/* 📝 NEW: Rider Text Input Reply */}
+                    <input 
+                      type="text"
+                      placeholder="Type reply (e.g., Ye item available nahi hai)..."
+                      value={item.riderTextReply || ""}
+                      onChange={(e) => {
+                        const updatedItems = [...order.items];
+                        updatedItems[i].riderTextReply = e.target.value;
+                        setOrder({ ...order, items: updatedItems });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-100 text-sm rounded-2xl p-4 outline-none focus:border-slate-900 transition-all text-slate-800 font-medium"
+                    />
+
+                    {/* 🎙️ Rider Voice Recording Row */}
                     <div className="flex gap-2">
                       {isRecordingRider === i ? (
                         <button 
+                          type="button"
                           onClick={stopRiderRecording}
                           className="flex-1 p-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-red-100"
                         >
@@ -203,15 +221,17 @@ export default function RiderAbsoluteFixPage() {
                         </button>
                       ) : (
                         <button 
+                          type="button"
                           onClick={() => startRiderRecording(i)}
                           className="flex-1 p-4 bg-green-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
                         >
-                          <Mic size={16} /> Start Record Reply
+                          <Mic size={16} /> Record Voice Reply
                         </button>
                       )}
 
                       {riderAudioURLs[i] && (
                         <button 
+                          type="button"
                           onClick={() => playOwnRecordedVoice(riderAudioURLs[i])}
                           className="bg-blue-600 text-white px-5 rounded-2xl flex items-center justify-center active:scale-95 shadow-md shadow-blue-100"
                           title="Apni Awaz Suno"
@@ -220,6 +240,7 @@ export default function RiderAbsoluteFixPage() {
                         </button>
                       )}
                     </div>
+                    
                     {riderBase64Audio[i] && (
                       <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Your audio response converted & saved successfully!</p>
                     )}
@@ -227,7 +248,7 @@ export default function RiderAbsoluteFixPage() {
                 </div>
               )}
 
-              {!item.isCustom && (
+              {!showResponseOption && (
                 <div className="mt-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">✓ Fixed Item (No Actions Needed)</p>
                 </div>
@@ -238,6 +259,7 @@ export default function RiderAbsoluteFixPage() {
         })}
       </main>
 
+      {/* Confirm and Back Button */}
       <div className="fixed bottom-8 left-6 right-6 max-w-md mx-auto">
         <button 
           onClick={handleConfirmOrder}

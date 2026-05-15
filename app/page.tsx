@@ -97,7 +97,7 @@ export default function CustomerPage() {
       unit: "Custom Request", 
       shopName, 
       cartId: Math.random(),
-      isCustom: true 
+      isCustom: true // 🔥 Yeh line confirm karti hai ke rider page par options khulein!
     }]);
     setCustomRequest("");
   };
