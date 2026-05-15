@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Mic, Play, MessageSquare, CheckCircle, 
-  User, MapPin, Phone, ChevronRight, DollarSign 
+  User, MapPin, Phone, ChevronRight, DollarSign, StopCircle, Volume2
 } from 'lucide-react';
 
 export default function RiderPage() {
   const [order, setOrder] = useState<any>(null);
-  const [responses, setResponses] = useState<{ [key: string]: string }>({});
+  const [isReplying, setIsReplying] = useState<number | null>(null); // Konsay item ka reply ho raha hai
 
-  // Customer ka order data uthana
   useEffect(() => {
     const savedOrder = localStorage.getItem('latestOrder');
     if (savedOrder) {
@@ -17,114 +16,118 @@ export default function RiderPage() {
     }
   }, []);
 
-  const handlePriceUpdate = (cartId: number, price: string) => {
-    setResponses({ ...responses, [cartId]: price });
+  // Customer ki voice sunne ka function (Simulation)
+  const playCustomerVoice = (itemName: string) => {
+    alert(`Playing Customer Voice for: ${itemName}`);
+    // Yahan real audio play logic aayega
+  };
+
+  // Rider ki apni voice record karne ka function
+  const handleRiderReply = (cartId: number) => {
+    setIsReplying(null);
+    alert("Your voice response has been sent to the customer!");
   };
 
   if (!order) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-10 text-center">
-        <div>
-          <Package size={64} className="mx-auto text-slate-300 mb-4 animate-pulse" />
-          <h2 className="text-xl font-bold text-slate-500">Waiting for new orders...</h2>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+        <div className="text-center animate-pulse">
+          <Package size={64} className="mx-auto mb-4 text-slate-700" />
+          <p className="font-bold text-slate-500">Checking for new tasks...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white pb-20">
-      {/* Header */}
-      <div className="bg-slate-800 p-6 rounded-b-[3rem] shadow-2xl border-b border-slate-700">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <span className="bg-green-500/20 text-green-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Active Task</span>
-            <h1 className="text-3xl font-black mt-2">New Delivery</h1>
-          </div>
-          <div className="w-12 h-12 bg-slate-700 rounded-2xl flex items-center justify-center border border-slate-600">
-            <User size={24} className="text-slate-300" />
+    <div className="min-h-screen bg-slate-950 text-slate-200 pb-20 font-sans">
+      {/* Top Banner */}
+      <div className="bg-slate-900 p-8 rounded-b-[3.5rem] border-b border-white/5 shadow-2xl">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-black tracking-tighter">TASK <span className="text-blue-500">#442</span></h1>
+          <div className="flex -space-x-2">
+            <div className="w-10 h-10 rounded-full border-2 border-slate-900 bg-green-500 flex items-center justify-center text-[10px] font-black">LIVE</div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-3xl border border-white/5">
-          <div className="p-3 bg-blue-600 rounded-2xl"><MapPin size={20}/></div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase">Customer Location</p>
-            <p className="text-sm font-bold">Gulshan-e-Iqbal, Block 13-D, Karachi</p>
+
+        <div className="flex items-center gap-4 bg-black/20 p-5 rounded-[2rem] border border-white/5">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-900/40"><MapPin size={24} className="text-white"/></div>
+          <div className="flex-1">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Drop-off Point</p>
+            <p className="text-sm font-bold text-white">Gulshan-e-Iqbal, Block 13-D</p>
           </div>
+          <button className="p-4 bg-slate-800 rounded-2xl text-green-400"><Phone size={20}/></button>
         </div>
       </div>
 
-      <main className="p-5 space-y-6">
-        {/* Cart Items Section */}
-        <section>
-          <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] px-2 mb-4">Order Details ({order.items.length})</h2>
-          
-          <div className="space-y-4">
-            {order.items.map((item: any) => (
-              <div key={item.cartId} className={`p-5 rounded-[2.5rem] border ${item.isCustom ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-800 border-slate-700'}`}>
-                <div className="flex justify-between items-start">
-                  <div className="flex gap-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.isCustom ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                      {item.isCustom ? (item.name.includes("Voice") ? <Mic size={20}/> : <MessageSquare size={20}/>) : <Package size={20}/>}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg">{item.name}</h3>
-                      <p className="text-xs text-slate-400 uppercase font-bold tracking-tighter">{item.shopName}</p>
-                    </div>
-                  </div>
-                  {!item.isCustom && <span className="font-black text-green-400">Rs {item.price}</span>}
+      <main className="p-6 space-y-6">
+        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2">Shopping List</h2>
+
+        {order.items.map((item: any) => (
+          <div key={item.cartId} className={`relative overflow-hidden p-6 rounded-[2.5rem] border transition-all ${item.isCustom ? 'bg-blue-600/5 border-blue-500/20' : 'bg-slate-900 border-white/5'}`}>
+            
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex items-center gap-4">
+                <div className={`w-14 h-14 rounded-3xl flex items-center justify-center ${item.isCustom ? 'bg-blue-600 shadow-lg shadow-blue-900/50' : 'bg-slate-800 text-slate-500'}`}>
+                  {item.isCustom ? <Mic size={24} className="text-white"/> : <Package size={24}/>}
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-white leading-tight">{item.name}</h3>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{item.shopName}</p>
+                </div>
+              </div>
+              {!item.isCustom && <div className="text-right text-green-400 font-black text-lg italic">Rs {item.price}</div>}
+            </div>
+
+            {/* Custom/Voice Item Controls */}
+            {item.isCustom && (
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                {/* 1. Listen to Customer */}
+                <button 
+                  onClick={() => playCustomerVoice(item.name)}
+                  className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl flex items-center justify-center gap-3 font-black text-xs tracking-widest uppercase transition-all"
+                >
+                  <Volume2 size={18} className="text-blue-400" /> Listen Customer Voice
+                </button>
+
+                {/* 2. Rider's Voice Reply */}
+                <div className="relative">
+                  <button 
+                    onMouseDown={() => setIsReplying(item.cartId)}
+                    onMouseUp={() => handleRiderReply(item.cartId)}
+                    onTouchStart={() => setIsReplying(item.cartId)}
+                    onTouchEnd={() => handleRiderReply(item.cartId)}
+                    className={`w-full py-5 rounded-2xl font-black text-xs flex items-center justify-center gap-3 border transition-all ${
+                      isReplying === item.cartId 
+                      ? "bg-red-600 border-red-500 text-white animate-pulse" 
+                      : "bg-blue-600/10 border-blue-600/30 text-blue-400"
+                    }`}
+                  >
+                    {isReplying === item.cartId ? <StopCircle size={20}/> : <Mic size={18}/>}
+                    {isReplying === item.cartId ? "RECORDING YOUR RESPONSE..." : "HOLD TO REPLY WITH VOICE"}
+                  </button>
                 </div>
 
-                {/* Rider Action for Custom/Voice Items */}
-                {item.isCustom && (
-                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
-                    {item.name.includes("Voice") && (
-                      <button className="w-full py-3 bg-blue-600 rounded-2xl flex items-center justify-center gap-3 font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-900/50">
-                        <Play size={16} fill="white" /> LISTEN VOICE NOTE
-                      </button>
-                    )}
-                    
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-slate-900 rounded-2xl px-4 py-3 border border-slate-700 flex items-center gap-2">
-                        <DollarSign size={16} className="text-green-500"/>
-                        <input 
-                          type="number" 
-                          placeholder="Enter Price..." 
-                          className="bg-transparent outline-none text-sm w-full"
-                          onChange={(e) => handlePriceUpdate(item.cartId, e.target.value)}
-                        />
-                      </div>
-                      <button className="p-4 bg-green-600 rounded-2xl text-white active:scale-90 transition-all shadow-lg shadow-green-900/50">
-                        <CheckCircle size={20}/>
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-slate-500 italic px-2">Rider will confirm price after reaching shop</p>
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-black/40 rounded-2xl px-5 py-4 border border-white/5 flex items-center gap-3">
+                    <DollarSign size={18} className="text-green-500"/>
+                    <input type="number" placeholder="Enter Price" className="bg-transparent outline-none text-sm font-bold w-full text-white" />
                   </div>
-                )}
+                  <button className="p-4 bg-green-600 text-white rounded-2xl shadow-lg shadow-green-900/40 active:scale-90 transition-all">
+                    <CheckCircle size={24}/>
+                  </button>
+                </div>
               </div>
-            ))}
+            )}
           </div>
-        </section>
+        ))}
 
-        {/* Total Summary */}
-        <div className="bg-gradient-to-br from-green-600 to-green-700 p-8 rounded-[3rem] shadow-xl">
-          <div className="flex justify-between items-center text-white/80 text-xs font-black uppercase tracking-widest mb-2">
-            <span>Customer Total</span>
-            <span>Est. Bill</span>
-          </div>
-          <div className="flex justify-between items-end">
-            <h2 className="text-4xl font-black italic">Rs {order.total}</h2>
-            <button className="p-4 bg-white text-green-600 rounded-full shadow-lg"><Phone size={20}/></button>
-          </div>
+        {/* Final Action */}
+        <div className="pt-4">
+          <button className="w-full py-6 bg-white text-black rounded-[2.5rem] font-black text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 uppercase tracking-tighter">
+            Confirm & Start Delivery <ChevronRight size={24}/>
+          </button>
         </div>
-
-        <button 
-          onClick={() => alert("Order marked as Picked Up!")}
-          className="w-full py-6 bg-white text-slate-900 rounded-[2.5rem] font-black text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3"
-        >
-          START DELIVERY <ChevronRight size={24}/>
-        </button>
       </main>
     </div>
   );
