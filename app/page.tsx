@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ShoppingBag, Mic, Send, Store, Plus, 
@@ -22,6 +22,10 @@ export default function CustomerPage() {
   const [customRequest, setCustomRequest] = useState("");
   const [isRecording, setIsRecording] = useState(false);
 
+  // Audio Recording Refs for Real Voice Capture
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   // Functions
   const addToCart = (product: any, shopName: string) => {
     setCart([...cart, { ...product, shopName, cartId: Math.random() }]);
@@ -29,6 +33,57 @@ export default function CustomerPage() {
 
   const removeFromCart = (cartId: number) => {
     setCart(cart.filter(item => item.cartId !== cartId));
+  };
+
+  // Asli Voice capturing function
+  const startRecordingVoice = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob); // Converts audio file to Base64 String
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          // Voice custom item cart mein append ho raha hai design kharab kiye bagair
+          setCart((prevCart) => [
+            ...prevCart,
+            { 
+              id: Date.now(), 
+              name: "Voice Note Order 🎙️", 
+              price: 0, 
+              unit: "Custom Request", 
+              shopName: selectedShop.name, 
+              cartId: Math.random(),
+              isCustom: true,
+              audioData: base64Audio // Yeh line ab Rider dashboard par chalegi!
+            }
+          ]);
+        };
+        // Stop camera/mic tracks safely
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      alert("Mic permission block hai! Please click allow mic.");
+    }
+  };
+
+  const stopRecordingVoice = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const addCustomToCart = (shopName: string, customName?: string) => {
@@ -163,12 +218,12 @@ export default function CustomerPage() {
                   </button>
                 </div>
                 
-                {/* Voice Button */}
+                {/* Voice Button Connected to Fixed Audio Logic */}
                 <button 
-                  onMouseDown={() => setIsRecording(true)}
-                  onMouseUp={() => { setIsRecording(false); addCustomToCart(selectedShop.name, "Voice Note Order 🎙️"); }}
-                  onTouchStart={() => setIsRecording(true)}
-                  onTouchEnd={() => { setIsRecording(false); addCustomToCart(selectedShop.name, "Voice Note Order 🎙️"); }}
+                  onMouseDown={startRecordingVoice}
+                  onMouseUp={stopRecordingVoice}
+                  onTouchStart={startRecordingVoice}
+                  onTouchEnd={stopRecordingVoice}
                   className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-4 border transition-all duration-300 relative overflow-hidden ${
                     isRecording 
                     ? "bg-red-50 border-red-300 text-red-600 scale-95" 
