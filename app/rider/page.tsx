@@ -1,13 +1,15 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-  Package, Mic, Play, MessageSquare, CheckCircle, 
-  Volume2, StopCircle, DollarSign, ChevronRight, Phone
+  Mic, Play, Volume2, Send, CheckCircle, 
+  Store, Package, MessageSquare, DollarSign, Clock 
 } from 'lucide-react';
 
-export default function RiderPage() {
+export default function RiderOrderControl() {
   const [order, setOrder] = useState<any>(null);
-  const [isReplying, setIsReplying] = useState<number | null>(null);
+  const [activeChat, setActiveChat] = useState<number | null>(null); // Kis item par chat khuli hai
+  const [replyText, setReplyText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     const savedOrder = localStorage.getItem('latestOrder');
@@ -16,85 +18,101 @@ export default function RiderPage() {
     }
   }, []);
 
-  if (!order) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-bold">Loading Order...</div>;
+  if (!order) return <div className="p-10 text-center text-slate-500">No active orders...</div>;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 pb-10 font-sans">
+    <div className="min-h-screen bg-[#f0f2f5] pb-10">
       {/* Header */}
-      <div className="p-8 bg-slate-900 rounded-b-[3rem] border-b border-white/5">
-        <h1 className="text-2xl font-black italic text-blue-500">RIDER DASHBOARD</h1>
-        <p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">New Task assigned</p>
+      <div className="bg-[#00a884] p-6 text-white shadow-lg">
+        <h1 className="text-xl font-bold">Current Order Items</h1>
+        <p className="text-xs opacity-90">Customer: {order.customerName || 'Saniya Kanwal'}</p>
       </div>
 
-      <main className="p-6 space-y-6">
-        {order.items.map((item: any) => {
-          // Check if it's a voice note or text request
-          const isVoiceNote = item.isCustom && item.name.includes("Voice Note");
-
-          return (
-            <div key={item.cartId} className={`p-6 rounded-[2.5rem] border transition-all ${isVoiceNote ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-900 border-white/5'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isVoiceNote ? 'bg-blue-600 shadow-lg shadow-blue-500/50' : 'bg-slate-800'}`}>
-                    {isVoiceNote ? <Mic size={20} className="text-white"/> : <Package size={20} className="text-slate-500"/>}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white leading-tight">
-                      {isVoiceNote ? "Voice Message From Customer" : item.name}
-                    </h3>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{item.shopName}</p>
+      <main className="p-4 space-y-4">
+        {order.items.map((item: any) => (
+          <div key={item.cartId} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            
+            {/* --- ITEM INFO SECTION --- */}
+            <div className="p-4 flex justify-between items-start bg-slate-50/50">
+              <div className="flex gap-3">
+                <div className="p-2 bg-white rounded-xl border border-slate-100 shadow-sm text-slate-600">
+                  {item.isCustom ? <MessageSquare size={20}/> : <Package size={20}/>}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800">{item.name}</h3>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
+                    <Store size={10} /> {item.shopName}
                   </div>
                 </div>
-                {!item.isCustom && <span className="font-black text-green-400">Rs {item.price}</span>}
               </div>
+              <div className="text-right">
+                <span className="text-xs font-black text-green-600">
+                  {item.price > 0 ? `Rs ${item.price}` : "Price Pending"}
+                </span>
+              </div>
+            </div>
 
-              {/* --- CONDITION 1: VOICE NOTE CONTROLS --- */}
-              {isVoiceNote && (
-                <div className="mt-4 space-y-3">
-                  {/* Customer ki voice sunna */}
-                  <button 
-                    onClick={() => alert("Playing Customer Audio...")}
-                    className="w-full py-4 bg-slate-800 text-blue-400 rounded-2xl flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest border border-blue-500/20 active:scale-95 transition-all"
-                  >
-                    <Volume2 size={16} /> Play Customer Voice
+            {/* --- COMMUNICATION SECTION --- */}
+            <div className="p-4 border-t border-slate-100">
+              {/* Agar Customer ne Voice Note bheja tha */}
+              {item.isCustom && item.name.includes("Voice") && (
+                <div className="mb-4 bg-blue-50 p-3 rounded-xl flex items-center gap-3 border border-blue-100">
+                  <button className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-md">
+                    <Play size={18} fill="white" />
                   </button>
+                  <div className="flex-1 h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                    <div className="w-1/3 h-full bg-blue-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-600">0:12</span>
+                </div>
+              )}
 
-                  {/* Rider ka apna voice reply */}
+              {/* Action Buttons for Rider */}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Type reply for this item..." 
+                    className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none border border-transparent focus:border-green-500"
+                  />
+                  <button className="p-3 bg-slate-800 text-white rounded-full">
+                    <Send size={16} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
                   <button 
-                    onMouseDown={() => setIsReplying(item.cartId)}
-                    onMouseUp={() => { setIsReplying(null); alert("Voice Response Sent!"); }}
-                    className={`w-full py-4 rounded-2xl font-black text-[10px] flex items-center justify-center gap-3 border transition-all ${
-                      isReplying === item.cartId 
-                      ? "bg-red-600 border-red-500 text-white animate-pulse" 
-                      : "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    onMouseDown={() => setIsRecording(true)}
+                    onMouseUp={() => { setIsRecording(false); alert("Voice reply sent for this item!"); }}
+                    className={`flex-1 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                      isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-[#00a884]/10 text-[#00a884] border border-[#00a884]/20'
                     }`}
                   >
-                    {isReplying === item.cartId ? <StopCircle size={18}/> : <Mic size={18}/>}
-                    {isReplying === item.cartId ? "RECORDING..." : "HOLD TO VOICE REPLY"}
+                    <Mic size={16} /> {isRecording ? "RECORDING..." : "HOLD TO VOICE REPLY"}
                   </button>
-                </div>
-              )}
-
-              {/* --- CONDITION 2: PRICE UPDATE (For all Custom items) --- */}
-              {item.isCustom && (
-                <div className="mt-4 pt-4 border-t border-white/5 flex gap-2">
-                  <div className="flex-1 bg-black/40 rounded-2xl px-4 py-3 border border-white/5 flex items-center gap-2">
-                    <DollarSign size={14} className="text-green-500"/>
-                    <input type="number" placeholder="Set Price" className="bg-transparent outline-none text-xs font-bold w-full text-white" />
+                  
+                  {/* Price Setting (Rider reaching shop) */}
+                  <div className="flex items-center bg-yellow-50 border border-yellow-200 rounded-xl px-2">
+                    <DollarSign size={14} className="text-yellow-600" />
+                    <input type="number" placeholder="Set Price" className="w-16 bg-transparent p-2 text-xs font-bold outline-none" />
                   </div>
-                  <button className="p-4 bg-green-600 text-white rounded-2xl active:scale-90 transition-all">
-                    <CheckCircle size={20}/>
-                  </button>
                 </div>
-              )}
+              </div>
             </div>
-          );
-        })}
 
-        {/* Action Button */}
-        <button className="w-full py-6 bg-white text-black rounded-[2.5rem] font-black text-lg shadow-2xl flex items-center justify-center gap-3 uppercase active:scale-95 transition-all">
-          Start Pick-up <ChevronRight size={20}/>
-        </button>
+          </div>
+        ))}
+
+        {/* Total Bill & Finish */}
+        <div className="mt-6 bg-white p-6 rounded-[2rem] shadow-xl border-t-4 border-green-500">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-slate-500 font-bold uppercase text-xs tracking-widest">Total Estimated</span>
+            <span className="text-2xl font-black text-slate-800">Rs {order.total}</span>
+          </div>
+          <button className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg shadow-slate-300">
+            <CheckCircle size={20} /> MARK ALL PICKED UP
+          </button>
+        </div>
       </main>
     </div>
   );
