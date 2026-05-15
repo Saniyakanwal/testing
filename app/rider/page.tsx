@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Mic, Play, Bike, CheckCircle2, 
-  Volume2, RefreshCw, Trash2, Headphones, Square 
+  Volume2, RefreshCw, Trash2, Square 
 } from 'lucide-react';
 
 export default function RiderAbsoluteFixPage() {
@@ -91,18 +91,18 @@ export default function RiderAbsoluteFixPage() {
     const audio = new Audio(audioUrl);
     audio.play().catch(e => console.error("Error playing rider voice:", e));
   };
-const handleConfirmOrder = async () => {
-    // Context text for fallback or logging
+
+  // 4. Order Confirm & Redirect
+  const handleConfirmOrder = async () => {
     const riderConversationsText = order.items.map((item: any, i: number) => {
-      const voiceStatus = riderBase64Audio[i] ? "Voice reply" : "No voice";
-      const textStatus = item.riderTextReply ? `Text: ${item.riderTextReply}` : "No text";
-      return `${item.name}: ${voiceStatus}, ${textStatus}`;
+      const voiceStatus = riderBase64Audio[i] ? "Voice reply recorded" : "No voice reply";
+      const textStatus = item.riderTextReply ? `Text reply: ${item.riderTextReply}` : "No text reply";
+      return `Product: ${item.name} (${voiceStatus} | ${textStatus})`;
     }).join(" | ");
 
-    // 🔥 SANIYA CRITICAL FIX: Direct structure send karein bina double wrapping ke
     const finalConvoData = {
-      text: riderConversationsText, // Standard field for bridge
-      action: "rider_submit",       // Backend isko direct read karega
+      text: riderConversationsText, 
+      action: "rider_submit", 
       orderId: order.orderId,
       totalBill: order.total,
       conversation: order.items.map((item: any, i: number) => ({
@@ -116,19 +116,19 @@ const handleConfirmOrder = async () => {
     };
 
     try {
-      // ⚡ AGAR AAP APNE LOCAL ENDPOINT PAR DIRECT CHECK KAR RAHI HAIN:
-      // URL ko local port (e.g., http://localhost:7860/api/sync-bot) ya Vercel Bridge dono par check karein
-      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+      // Direct local api check ya Vercel link donon par chala sakti hain
+      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/sync-bot", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalConvoData),
       });
       
       const resJSON = await response.json();
-      console.log("Rider Sync Success:", resJSON);
+      console.log("Rider Sync Success Data:", resJSON);
       alert("Convo analyzed by Bot! Shop items listing updated.");
     } catch (error) {
       console.error("Finalization Bot API Error:", error);
+      alert("Database sync mein masla aaya, check server log!");
     }
 
     localStorage.removeItem('latestOrder');
@@ -160,7 +160,6 @@ const handleConfirmOrder = async () => {
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Received Order Items</p>
 
         {order.items.map((item: any, i: number) => {
-          // ⚡ SANIYA FIX: Agar item custom input hai (chahe text ho ya voice), options show hone chahiyen!
           const showResponseOption = item.isCustom || item.name.includes("🎙️") || item.audioData;
           const hasVoice = item.audioData || item.name.includes("🎙️");
 
@@ -179,11 +178,10 @@ const handleConfirmOrder = async () => {
                 </p>
               </div>
 
-              {/* ⚡ UNIVERSAL RESPONSE CONTAINER */}
+              {/* UNIVERSAL RESPONSE CONTAINER */}
               {showResponseOption && (
                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
                   
-                  {/* Customer Voice Playback (Only shows if customer actually recorded voice) */}
                   {hasVoice && (
                     <button 
                       type="button"
@@ -194,30 +192,44 @@ const handleConfirmOrder = async () => {
                     </button>
                   )}
 
-                  {/* Rider Action Fields */}
+                  {/* Rider Input Fields */}
                   <div className="space-y-3">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Your Response to Customer</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Your Response & Price</p>
                     
-                    {/* 📝 NEW: Rider Text Input Reply */}
-                    <input 
-                      type="text"
-                      placeholder="Type reply (e.g., Ye item available nahi hai)..."
-                      value={item.riderTextReply || ""}
-                      onChange={(e) => {
-                        const updatedItems = [...order.items];
-                        updatedItems[i].riderTextReply = e.target.value;
-                        setOrder({ ...order, items: updatedItems });
-                      }}
-                      className="w-full bg-slate-50 border border-slate-100 text-sm rounded-2xl p-4 outline-none focus:border-slate-900 transition-all text-slate-800 font-medium"
-                    />
+                    {/* Input field connected to the React State Array */}
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="Type reply & price (e.g., Aloo 120rs per kg)..."
+                        value={item.riderTextReply || ""}
+                        onChange={(e) => {
+                          const updatedItems = [...order.items];
+                          updatedItems[i].riderTextReply = e.target.value;
+                          setOrder({ ...order, items: updatedItems });
+                        }}
+                        className="flex-1 bg-slate-50 border border-slate-100 text-sm rounded-2xl p-4 outline-none focus:border-slate-900 transition-all text-slate-800 font-medium"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if(!item.riderTextReply?.trim()) return alert("Pehle type karein!");
+                          alert("Response temporary save ho gaya!");
+                        }}
+                        className={`px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${
+                          item.riderTextReply?.trim() ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        Set
+                      </button>
+                    </div>
 
-                    {/* 🎙️ Rider Voice Recording Row */}
+                    {/* Rider Voice Recorder */}
                     <div className="flex gap-2">
                       {isRecordingRider === i ? (
                         <button 
                           type="button"
                           onClick={stopRiderRecording}
-                          className="flex-1 p-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-red-100"
+                          className="flex-1 p-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 animate-pulse shadow-lg"
                         >
                           <Square size={16} /> Stop Recording
                         </button>
@@ -227,7 +239,7 @@ const handleConfirmOrder = async () => {
                           onClick={() => startRiderRecording(i)}
                           className="flex-1 p-4 bg-green-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
                         >
-                          <Mic size={16} /> Record Voice Reply
+                          <Mic size={16} /> Record Voice
                         </button>
                       )}
 
@@ -235,16 +247,15 @@ const handleConfirmOrder = async () => {
                         <button 
                           type="button"
                           onClick={() => playOwnRecordedVoice(riderAudioURLs[i])}
-                          className="bg-blue-600 text-white px-5 rounded-2xl flex items-center justify-center active:scale-95 shadow-md shadow-blue-100"
-                          title="Apni Awaz Suno"
+                          className="bg-blue-600 text-white px-5 rounded-2xl flex items-center justify-center active:scale-95 shadow-md"
                         >
                           <Play size={16} fill="currentColor" />
                         </button>
                       )}
                     </div>
                     
-                    {riderBase64Audio[i] && (
-                      <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Your audio response converted & saved successfully!</p>
+                    {(riderBase64Audio[i] || item.riderTextReply?.trim()) && (
+                      <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Input ready for submission!</p>
                     )}
                   </div>
                 </div>
@@ -255,13 +266,11 @@ const handleConfirmOrder = async () => {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">✓ Fixed Item (No Actions Needed)</p>
                 </div>
               )}
-
             </div>
           );
         })}
       </main>
 
-      {/* Confirm and Back Button */}
       <div className="fixed bottom-8 left-6 right-6 max-w-md mx-auto">
         <button 
           onClick={handleConfirmOrder}
