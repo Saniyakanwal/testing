@@ -91,18 +91,18 @@ export default function RiderAbsoluteFixPage() {
     const audio = new Audio(audioUrl);
     audio.play().catch(e => console.error("Error playing rider voice:", e));
   };
-
-  // 4. Order Confirm & Redirect
-  const handleConfirmOrder = async () => {
+const handleConfirmOrder = async () => {
+    // Context text for fallback or logging
     const riderConversationsText = order.items.map((item: any, i: number) => {
-      const voiceStatus = riderBase64Audio[i] ? "Voice reply recorded" : "No voice reply";
-      const textStatus = item.riderTextReply ? `Text reply: ${item.riderTextReply}` : "No text reply";
-      return `Product: ${item.name} (${voiceStatus} | ${textStatus})`;
+      const voiceStatus = riderBase64Audio[i] ? "Voice reply" : "No voice";
+      const textStatus = item.riderTextReply ? `Text: ${item.riderTextReply}` : "No text";
+      return `${item.name}: ${voiceStatus}, ${textStatus}`;
     }).join(" | ");
 
+    // 🔥 SANIYA CRITICAL FIX: Direct structure send karein bina double wrapping ke
     const finalConvoData = {
-      text: `Rider closed Order ${order.orderId}. Context: ${riderConversationsText}`,
-      action: "rider_submit", 
+      text: riderConversationsText, // Standard field for bridge
+      action: "rider_submit",       // Backend isko direct read karega
       orderId: order.orderId,
       totalBill: order.total,
       conversation: order.items.map((item: any, i: number) => ({
@@ -111,11 +111,13 @@ export default function RiderAbsoluteFixPage() {
         isCustom: item.isCustom || false,
         customerVoiceData: item.audioData || null,   
         riderVoiceResponse: riderBase64Audio[i] || null, 
-        riderTextResponse: item.riderTextReply || null // Syncing Rider Text Reply to Backend
+        riderTextResponse: item.riderTextReply || null 
       }))
     };
 
     try {
+      // ⚡ AGAR AAP APNE LOCAL ENDPOINT PAR DIRECT CHECK KAR RAHI HAIN:
+      // URL ko local port (e.g., http://localhost:7860/api/sync-bot) ya Vercel Bridge dono par check karein
       const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +125,7 @@ export default function RiderAbsoluteFixPage() {
       });
       
       const resJSON = await response.json();
-      console.log("Rider Sync Success Data:", resJSON);
+      console.log("Rider Sync Success:", resJSON);
       alert("Convo analyzed by Bot! Shop items listing updated.");
     } catch (error) {
       console.error("Finalization Bot API Error:", error);
