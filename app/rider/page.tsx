@@ -1,95 +1,117 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Mic, Send, Bike, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Mic, Bike, CheckCircle2, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
 
-export default function RiderSimplePage() {
+export default function RiderPage() {
   const [order, setOrder] = useState<any>(null);
   const [reply, setReply] = useState("");
   const [isListening, setIsListening] = useState(false);
 
-  useEffect(() => {
+  // Function to sync data from LocalStorage
+  const syncOrder = () => {
     const data = localStorage.getItem('active_order');
-    if (data) setOrder(JSON.parse(data));
+    if (data) {
+      setOrder(JSON.parse(data));
+    } else {
+      setOrder(null);
+    }
+  };
+
+  useEffect(() => {
+    syncOrder();
+    // Har 2 second baad check karega ke customer ne order bheja ya nahi
+    const interval = setInterval(syncOrder, 2000);
+    return () => clearInterval(interval);
   }, []);
 
+  // Voice Recognition Logic
   const startVoice = () => {
     const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!Speech) return alert("Mic not supported");
+    if (!Speech) return alert("Browser mic support nahi kar raha");
 
     const rec = new Speech();
     rec.onstart = () => setIsListening(true);
-    rec.onresult = (e: any) => setReply(e.results[0][0].transcript);
+    rec.onresult = (e: any) => {
+      setReply(e.results[0][0].transcript);
+    };
     rec.onend = () => setIsListening(false);
     rec.start();
   };
 
   const finalizeOrder = () => {
-    alert(`Order Finalized! Reply sent: ${reply}`);
-    // Yahan order khatam ho jayega
-    localStorage.removeItem('active_order');
+    if (!reply) return alert("Pehle koi reply likhain ya bolain!");
+    
+    alert(`Order Finalized! Customer ko reply chala gaya: ${reply}`);
+    localStorage.removeItem('active_order'); // Order khatam
     setOrder(null);
+    setReply("");
   };
 
   if (!order) return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-green-600 font-bold">
-      <Bike size={48} className="mb-4 opacity-20" />
-      <p>No new orders to show.</p>
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-green-600">
+      <RefreshCw className="animate-spin mb-4 text-green-300" size={32} />
+      <p className="font-black italic uppercase tracking-widest text-sm">Waiting for Customer...</p>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-white text-green-800 p-6 font-sans flex flex-col">
       {/* Header */}
-      <header className="flex items-center gap-3 mb-10 border-b border-green-50 pb-4">
-        <h1 className="text-2xl font-black italic tracking-tighter text-green-600">RIDER SYNC</h1>
+      <header className="flex items-center gap-3 mb-8 border-b border-green-50 pb-4">
+        <div className="bg-green-600 p-2 rounded-xl text-white">
+          <Bike size={24} />
+        </div>
+        <h1 className="text-xl font-black italic tracking-tight">RIDER DASHBOARD</h1>
       </header>
 
-      {/* 1. Customer Ki Taraf Se Aaya Hua Order */}
-      <div className="bg-green-50/50 border-2 border-green-100 rounded-[2.5rem] p-6 mb-6">
-        <p className="text-[10px] font-black text-green-400 uppercase mb-4 tracking-widest">Order from Customer</p>
-        <h2 className="text-xl font-black mb-4">{order.shop}</h2>
-        <div className="space-y-2">
-          {order.items.map((item: any, i: number) => (
-            <div key={i} className="flex justify-between font-bold text-sm">
-              <span>• {item.name}</span>
-              <span className="italic opacity-60">{item.price}</span>
+      {/* Received Order Details */}
+      <div className="bg-green-50/50 border-2 border-green-100 rounded-[2.5rem] p-6 mb-6 shadow-sm">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Incoming from</p>
+            <h2 className="text-2xl font-black text-green-900">{order.shop}</h2>
+          </div>
+          <button onClick={() => {localStorage.removeItem('active_order'); setOrder(null);}} className="text-red-300 hover:text-red-500">
+            <Trash2 size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {order.items.map((it: any, i: number) => (
+            <div key={i} className="flex justify-between items-center py-2 border-b border-green-100 last:border-0">
+              <span className="font-bold text-sm text-green-800 tracking-tight">{it.name}</span>
+              <span className="text-xs font-black italic text-green-600 bg-white px-3 py-1 rounded-full border border-green-50">
+                {it.price}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 2. Rider Ka Reply Area */}
-      <div className="flex-1 flex flex-col justify-end pb-10">
-        <div className="mb-6">
-          <label className="text-[10px] font-black text-green-400 uppercase ml-4 mb-2 block">Your Response (Voice/Type)</label>
-          <div className="bg-white border-2 border-green-100 rounded-3xl p-4 min-h-[100px] shadow-inner relative">
-            <p className="text-green-800 font-medium">
-              {reply || <span className="text-green-200 italic">Reply sunay ya likhain...</span>}
-            </p>
-            <MessageSquare className="absolute bottom-4 right-4 text-green-100" />
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-5 gap-3 mb-4">
-          <input 
+      {/* Rider Response Section */}
+      <div className="flex-1 flex flex-col justify-end pb-6">
+        <label className="text-[10px] font-black text-green-400 uppercase ml-4 mb-2 block tracking-widest">
+          Your Voice/Type Reply
+        </label>
+        
+        <div className="relative mb-6">
+          <textarea 
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            placeholder="Type reply..."
-            className="col-span-3 bg-green-50 border border-green-100 rounded-2xl px-4 outline-none font-bold text-sm"
+            placeholder="Order ke baaray mein bataein..."
+            className="w-full bg-white border-2 border-green-100 rounded-[2rem] p-6 outline-none font-bold text-green-800 h-32 shadow-inner placeholder:text-green-100"
           />
+          <MessageSquare className="absolute bottom-6 right-6 text-green-50" />
+        </div>
+
+        {/* Voice & Action Buttons */}
+        <div className="flex gap-3 mb-4">
           <button 
             onClick={startVoice}
-            className={`col-span-1 p-4 rounded-2xl flex items-center justify-center transition-all ${isListening ? 'bg-red-500 animate-pulse text-white' : 'bg-green-100 text-green-600'}`}
+            className={`flex-1 p-5 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-green-100 text-green-600'}`}
           >
-            <Mic size={20} />
-          </button>
-          <button 
-            onClick={() => setReply("")}
-            className="col-span-1 p-4 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400"
-          >
-            <Send size={20} className="rotate-45" />
+            <Mic size={20} /> {isListening ? "Listening..." : "Voice Reply"}
           </button>
         </div>
 
