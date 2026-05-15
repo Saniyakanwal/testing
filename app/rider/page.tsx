@@ -1,126 +1,108 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Mic, Bike, CheckCircle2, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
+import { Mic, Play, Bike, CheckCircle2, MessageCircle, Volume2 } from 'lucide-react';
 
-export default function RiderPage() {
+export default function RiderAdvancedPage() {
   const [order, setOrder] = useState<any>(null);
-  const [reply, setReply] = useState("");
-  const [isListening, setIsListening] = useState(false);
+  const [riderReply, setRiderReply] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState<string | null>(null);
 
-  // Function to sync data from LocalStorage
-  const syncOrder = () => {
+  useEffect(() => {
     const data = localStorage.getItem('latestOrder');
-    if (data) {
-      setOrder(JSON.parse(data));
-    } else {
-      setOrder(null);
+    if (data) setOrder(JSON.parse(data));
+  }, []);
+
+  // Separate items by Shop
+  const groupedItems = order?.items?.reduce((acc: any, item: any) => {
+    (acc[item.shopName] = acc[item.shopName] || []).push(item);
+    return acc;
+  }, {});
+
+  // Rider Voice Recording Logic
+  const startRecording = () => {
+    setIsRecording(true);
+    const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (Speech) {
+      const rec = new Speech();
+      rec.onresult = (e: any) => setRiderReply(e.results[0][0].transcript);
+      rec.onend = () => setIsRecording(false);
+      rec.start();
     }
   };
 
-  useEffect(() => {
-    syncOrder();
-    // Har 2 second baad check karega ke customer ne order bheja ya nahi
-    const interval = setInterval(syncOrder, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Voice Recognition Logic
-  const startVoice = () => {
-    const Speech = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!Speech) return alert("Browser mic support nahi kar raha");
-
-    const rec = new Speech();
-    rec.onstart = () => setIsListening(true);
-    rec.onresult = (e: any) => {
-      setReply(e.results[0][0].transcript);
-    };
-    rec.onend = () => setIsListening(false);
-    rec.start();
-  };
-
-  const finalizeOrder = () => {
-    if (!reply) return alert("Pehle koi reply likhain ya bolain!");
-    
-    alert(`Order Finalized! Customer ko reply chala gaya: ${reply}`);
-    localStorage.removeItem('active_order'); // Order khatam
+  const finalize = () => {
+    alert("Order Finalized and Reply Sent!");
+    localStorage.removeItem('latestOrder');
     setOrder(null);
-    setReply("");
   };
 
-  if (!order) return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-green-600">
-      <RefreshCw className="animate-spin mb-4 text-green-300" size={32} />
-      <p className="font-black italic uppercase tracking-widest text-sm">Waiting for Customer...</p>
-    </div>
-  );
+  if (!order) return <div className="p-20 text-center font-bold text-green-600 animate-pulse">WAITING FOR CUSTOMER...</div>;
 
   return (
-    <div className="min-h-screen bg-white text-green-800 p-6 font-sans flex flex-col">
-      {/* Header */}
-      <header className="flex items-center gap-3 mb-8 border-b border-green-50 pb-4">
-        <div className="bg-green-600 p-2 rounded-xl text-white">
-          <Bike size={24} />
-        </div>
-        <h1 className="text-xl font-black italic tracking-tight">RIDER DASHBOARD</h1>
+    <div className="min-h-screen bg-white text-slate-900 p-6 font-sans pb-20">
+      <header className="flex items-center gap-2 mb-8 border-b pb-4">
+        <Bike className="text-green-600" />
+        <h1 className="text-xl font-black italic">RIDER DASHBOARD</h1>
       </header>
 
-      {/* Received Order Details */}
-      <div className="bg-green-50/50 border-2 border-green-100 rounded-[2.5rem] p-6 mb-6 shadow-sm">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Incoming from</p>
-            <h2 className="text-2xl font-black text-green-900">{order.shop}</h2>
-          </div>
-          <button onClick={() => {localStorage.removeItem('active_order'); setOrder(null);}} className="text-red-300 hover:text-red-500">
-            <Trash2 size={18} />
-          </button>
-        </div>
+      {/* Grouped Items by Shop */}
+      {Object.keys(groupedItems).map((shopName) => (
+        <div key={shopName} className="mb-8 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 shadow-sm">
+          <h2 className="text-xs font-black text-green-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-ping" /> {shopName}
+          </h2>
 
-        <div className="space-y-3">
-          {order.items.map((it: any, i: number) => (
-            <div key={i} className="flex justify-between items-center py-2 border-b border-green-100 last:border-0">
-              <span className="font-bold text-sm text-green-800 tracking-tight">{it.name}</span>
-              <span className="text-xs font-black italic text-green-600 bg-white px-3 py-1 rounded-full border border-green-50">
-                {it.price}
-              </span>
-            </div>
-          ))}
+          <div className="space-y-3">
+            {groupedItems[shopName].map((item: any, i: number) => (
+              <div key={i} className={`p-4 rounded-2xl flex justify-between items-center ${item.isCustom ? 'bg-blue-50 border border-blue-100' : 'bg-white border border-slate-100'}`}>
+                <div>
+                  <p className={`font-bold ${item.isCustom ? 'text-blue-700' : 'text-slate-800'}`}>
+                    {item.name}
+                  </p>
+                  <p className="text-[10px] font-bold opacity-50 uppercase tracking-tighter">
+                    {item.isCustom ? "Custom/Voice Request" : `Rs ${item.price}`}
+                  </p>
+                </div>
+
+                {/* If it's a Voice Note from Customer, show Play Button */}
+                {item.name.includes("Voice Note") && (
+                  <button className="bg-blue-600 text-white p-3 rounded-full shadow-lg active:scale-90">
+                    <Volume2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
       {/* Rider Response Section */}
-      <div className="flex-1 flex flex-col justify-end pb-6">
-        <label className="text-[10px] font-black text-green-400 uppercase ml-4 mb-2 block tracking-widest">
-          Your Voice/Type Reply
-        </label>
-        
-        <div className="relative mb-6">
-          <textarea 
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            placeholder="Order ke baaray mein bataein..."
-            className="w-full bg-white border-2 border-green-100 rounded-[2rem] p-6 outline-none font-bold text-green-800 h-32 shadow-inner placeholder:text-green-100"
-          />
-          <MessageSquare className="absolute bottom-6 right-6 text-green-50" />
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-6 rounded-t-[3rem] shadow-2xl">
+        <div className="mb-4">
+          <p className="text-[10px] font-black text-slate-400 uppercase mb-3 ml-2 tracking-widest">Rider's Audio/Text Reply</p>
+          <div className="bg-slate-100 p-5 rounded-[2rem] min-h-[80px] flex items-center justify-between border border-slate-200 shadow-inner">
+             <p className="text-sm font-bold text-slate-700">
+               {riderReply || "Recording ka intezar hai..."}
+             </p>
+             {riderReply && <button onClick={() => alert("Playing: " + riderReply)} className="text-green-600 p-2"><Play size={20}/></button>}
+          </div>
         </div>
 
-        {/* Voice & Action Buttons */}
-        <div className="flex gap-3 mb-4">
+        <div className="flex gap-3">
           <button 
-            onClick={startVoice}
-            className={`flex-1 p-5 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-green-100 text-green-600'}`}
+            onMouseDown={startRecording}
+            onMouseUp={() => setIsRecording(false)}
+            className={`flex-1 py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-900 text-white shadow-xl'}`}
           >
-            <Mic size={20} /> {isListening ? "Listening..." : "Voice Reply"}
+            <Mic size={20} /> {isRecording ? "Listening..." : "Hold to Record Reply"}
+          </button>
+          
+          <button onClick={finalize} className="bg-green-600 text-white px-8 rounded-2xl shadow-xl shadow-green-100">
+            <CheckCircle2 size={24} />
           </button>
         </div>
-
-        <button 
-          onClick={finalizeOrder}
-          className="w-full bg-green-600 text-white py-5 rounded-[2rem] font-black shadow-xl shadow-green-100 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
-        >
-          <CheckCircle2 size={20} /> Finalize & Send
-        </button>
       </div>
     </div>
   );
