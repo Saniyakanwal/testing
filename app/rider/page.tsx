@@ -108,7 +108,7 @@ export default function RiderAbsoluteFixPage() {
     });
 
     try {
-      const response = await fetch("/api/ai-processor", {
+      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
