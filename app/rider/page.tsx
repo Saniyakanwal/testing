@@ -85,36 +85,41 @@ export default function RiderAbsoluteFixPage() {
   };
 
   const handleConfirmOrder = async () => {
-    const riderConversationsText = order.items.map((item: any) => {
-      return item.riderTextReply ? item.riderTextReply : `${item.name} confirm hua`;
-    }).join(", ");
+    if (!order || !order.items) return;
 
-    // 🔥 STRUCT FORMAT: Matches what the Express Bot safe layers parse
-    const finalConvoData = {
-      action: "rider_submit", 
-      orderId: order.orderId,
-      text: riderConversationsText, 
-      totalBill: order.total,
-      conversation: order.items.map((item: any, i: number) => ({
-        shopName: item.shopName,
-        itemName: item.name,
-        isCustom: !!item.isCustom,
-        customerVoiceData: item.audioData || null,   
-        riderVoiceResponse: riderBase64Audio[i] || null, 
-        riderTextResponse: item.riderTextReply || `${item.name} processed` 
-      }))
-    };
+    // 🛠️ FIX: Reformat items to match your 'shop_inventory' table schema precisely
+    const flatInventoryItems = order.items.map((item: any) => {
+      let parsedPrice = Number(item.price) || 0;
+
+      // Extract raw price from rider input text if available (e.g. "120rs" -> 120)
+      if (item.riderTextReply) {
+        const match = item.riderTextReply.match(/\d+/);
+        if (match) {
+          parsedPrice = Number(match[0]);
+        }
+      }
+
+      return {
+        name: String(item.name).replace("Voice Note Order 🎙️", "Custom Requested Item"),
+        price: parsedPrice,
+        qty_unit: String(item.unit || "1 unit"),
+        image_url: String(item.img || "https://cdn-icons-png.flaticon.com/128/1135/1135544.png")
+      };
+    });
 
     try {
-      // Direct relative call avoiding local script CSP restrictions
       const response = await fetch("/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalConvoData),
+        body: JSON.stringify({
+          action: "rider_submit", 
+          orderId: order.orderId,
+          inventoryData: flatInventoryItems // Passing structure that inserts cleanly into shop_inventory
+        }),
       });
       
       const resJSON = await response.json();
-      console.log("🎉 Rider Sync Success Data:", resJSON);
+      console.log("🎉 Rider Inventory Sync Completed:", resJSON);
       alert("Inventory sync completed! Items are now listed on UI.");
     } catch (error) {
       console.error("💥 Finalization Bot API Error:", error);
