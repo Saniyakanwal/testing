@@ -107,6 +107,7 @@ export default function CustomerPage() {
   }, {});
 
   const handlePlaceOrder = async () => {
+    if (cart.length === 0) return;
     setIsOrdering(true);
     
     const orderId = "#ORD-" + Math.floor(1000 + Math.random() * 9000);
@@ -118,36 +119,28 @@ export default function CustomerPage() {
     
     localStorage.setItem('latestOrder', JSON.stringify(orderData));
     
-    const itemsText = cart.map(item => {
-      if (item.name && item.name.includes("Voice Note Order")) {
-        return "Voice request generated";
-      }
-      return `${item.name} (${item.unit || '1 unit'})`;
-    }).join(", ");
+    // 🛠️ FIX: Format items array to perfectly match your public.shop_inventory table columns
+    const flatInventoryItems = cart.map(item => ({
+      name: String(item.name),
+      price: Number(item.price) || 0, // Fallback to 0 if custom/voice item price is unset
+      qty_unit: String(item.unit || "1 unit"),
+      image_url: String(item.img || "https://cdn-icons-png.flaticon.com/128/1135/1135544.png")
+    }));
 
-    // 🔥 FLAT PAYLOAD: Matches structural expectations for validation layer
-    const finalPayload = {
-      action: "customer_submit",
-      orderId: orderId,
-      text: `Order ${orderId}: ${itemsText}. Total bill is Rs ${total}`,
-      total: total,
-      conversation: cart.map(item => ({
-        shopName: item.shopName,
-        itemName: item.name,
-        isCustom: !!item.isCustom,
-        riderTextResponse: item.name.includes("Voice Note Order") ? "Voice Input" : ""
-      }))
-    };
-    
     try {
+      // Sending flat format items down to your Express API wrapper
       const response = await fetch("/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalPayload), 
+        body: JSON.stringify({
+          action: "customer_submit",
+          orderId: orderId,
+          inventoryData: flatInventoryItems // Express route should map this key directly to Supabase client insert
+        }), 
       });
       
       const resData = await response.json();
-      console.log("🎉 Order forwarded to Bot pipeline successfully:", resData);
+      console.log("🎉 Inventory update sent to Express pipeline:", resData);
     } catch (error) {
       console.error("💥 Bot API Bridge Error:", error);
     }
