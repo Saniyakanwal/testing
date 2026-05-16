@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  ShoppingBag, Mic, Send, Store, Plus, 
+  ShoppingBag, Mic, Store, Plus, 
   ChevronLeft, ChevronRight, X, Trash2, CheckCircle2 
 } from 'lucide-react';
 
@@ -22,7 +22,7 @@ export default function CustomerPage() {
   const [customRequest, setCustomRequest] = useState("");
   const [isRecording, setIsRecording] = useState(false);
 
-  // Audio Recording Refs for Real Voice Capture
+  // Audio Recording Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -35,7 +35,6 @@ export default function CustomerPage() {
     setCart(cart.filter(item => item.cartId !== cartId));
   };
 
-  // Asli Voice capturing function
   const startRecordingVoice = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -50,10 +49,9 @@ export default function CustomerPage() {
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const reader = new FileReader();
-        reader.readAsDataURL(audioBlob); // Converts audio file to Base64 String
+        reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64Audio = reader.result as string;
-          // Voice custom item cart mein append ho raha hai design kharab kiye bagair
           setCart((prevCart) => [
             ...prevCart,
             { 
@@ -64,11 +62,10 @@ export default function CustomerPage() {
               shopName: selectedShop.name, 
               cartId: Math.random(),
               isCustom: true,
-              audioData: base64Audio // Yeh line ab Rider dashboard par chalegi!
+              audioData: base64Audio 
             }
           ]);
         };
-        // Stop camera/mic tracks safely
         mediaRecorder.stream.getTracks().forEach(track => track.stop());
       };
 
@@ -97,7 +94,7 @@ export default function CustomerPage() {
       unit: "Custom Request", 
       shopName, 
       cartId: Math.random(),
-      isCustom: true // 🔥 Yeh line confirm karti hai ke rider page par options khulein!
+      isCustom: true 
     }]);
     setCustomRequest("");
   };
@@ -108,7 +105,7 @@ export default function CustomerPage() {
     (acc[item.shopName] = acc[item.shopName] || []).push(item);
     return acc;
   }, {});
- // Send Data to Bot on Order Place (Fixed Integration)
+
   const handlePlaceOrder = async () => {
     setIsOrdering(true);
     
@@ -121,59 +118,47 @@ export default function CustomerPage() {
     
     localStorage.setItem('latestOrder', JSON.stringify(orderData));
     
-    // ⚡ SANIYA FIX: Cart ke saare items ko aik text string mein convert karna
-    // Taake Express bot aur Gemini isay poori tarah samajh sakein
     const itemsText = cart.map(item => {
-      if (item.name.includes("Voice Note Order")) {
-        // Agar voice note hai, toh bhejte hain ke custom voice aayi hai 
-        // (Base64 audio aap localStorage se rider side par direct access kar sakti hain)
+      if (item.name && item.name.includes("Voice Note Order")) {
         return "Voice request generated";
       }
       return `${item.name} (${item.unit || '1 unit'})`;
     }).join(", ");
 
+    // 🔥 FLAT PAYLOAD: Matches structural expectations for validation layer
     const finalPayload = {
-      text: `Order ${orderId}: ${itemsText}. Total bill is Rs ${total}`,
       action: "customer_submit",
-      ...orderData
+      orderId: orderId,
+      text: `Order ${orderId}: ${itemsText}. Total bill is Rs ${total}`,
+      total: total,
+      conversation: cart.map(item => ({
+        shopName: item.shopName,
+        itemName: item.name,
+        isCustom: !!item.isCustom,
+        riderTextResponse: item.name.includes("Voice Note Order") ? "Voice Input" : ""
+      }))
     };
     
-    // ---- AAPKI VERCEL BOT LINK INTEGRATION ----
     try {
-      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/ai-processor", {
+      const response = await fetch("/api/ai-processor", {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(finalPayload), // Ab isme strict 'text' field mojood hai!
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalPayload), 
       });
       
       const resData = await response.json();
-      console.log("Bot Response successfully received:", resData);
+      console.log("🎉 Order forwarded to Bot pipeline successfully:", resData);
     } catch (error) {
-      console.error("Bot API Error:", error);
+      console.error("💥 Bot API Bridge Error:", error);
     }
     
     setTimeout(() => { 
       router.push('/rider'); 
     }, 1500);
   };
-  // UI for Order Success
-  if (isOrdering) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-bounce text-green-600 shadow-lg">
-          <CheckCircle2 size={48} />
-        </div>
-        <h2 className="text-2xl font-black text-slate-800">Order Placed!</h2>
-        <p className="text-slate-500 mt-2">Opening Rider Dashboard...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32 font-sans">
-      {/* Navbar */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b px-5 py-5 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
           {selectedShop && (
@@ -197,7 +182,6 @@ export default function CustomerPage() {
 
       <main className="max-w-xl mx-auto p-5">
         {!selectedShop ? (
-          /* --- SHOP LIST --- */
           <div className="grid gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2">Select a Shop</h2>
             {SHOPS_DATA.map(shop => (
@@ -214,7 +198,6 @@ export default function CustomerPage() {
             ))}
           </div>
         ) : (
-          /* --- PRODUCT LIST & CUSTOM INPUT --- */
           <div className="animate-in slide-in-from-right duration-300 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               {selectedShop.items.map((item: any) => (
@@ -227,7 +210,6 @@ export default function CustomerPage() {
               ))}
             </div>
 
-            {/* --- VOICE & TEXT INPUT BOX --- */}
             <div className="bg-white p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200 shadow-inner">
               <div className="mb-4 text-center">
                 <h3 className="font-black text-slate-800 text-lg">Special Request?</h3>
@@ -235,7 +217,6 @@ export default function CustomerPage() {
               </div>
               
               <div className="space-y-3">
-                {/* Text Box */}
                 <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-4 py-1 border border-slate-200 focus-within:border-slate-900 transition-all">
                   <input 
                     type="text" 
@@ -252,16 +233,13 @@ export default function CustomerPage() {
                   </button>
                 </div>
                 
-                {/* Voice Button Connected to Fixed Audio Logic */}
                 <button 
                   onMouseDown={startRecordingVoice}
                   onMouseUp={stopRecordingVoice}
                   onTouchStart={startRecordingVoice}
                   onTouchEnd={stopRecordingVoice}
                   className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-4 border transition-all duration-300 relative overflow-hidden ${
-                    isRecording 
-                    ? "bg-red-50 border-red-300 text-red-600 scale-95" 
-                    : "bg-blue-50 border-blue-100 text-blue-600"
+                    isRecording ? "bg-red-50 border-red-300 text-red-600 scale-95" : "bg-blue-50 border-blue-100 text-blue-600"
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
@@ -273,12 +251,6 @@ export default function CustomerPage() {
                     {isRecording ? "Recording Now..." : "Hold to Record Voice"}
                   </span>
                 </button>
-                
-                {isRecording && (
-                   <p className="text-[10px] text-center text-red-500 font-bold animate-bounce uppercase tracking-tighter">
-                     Speak clearly • Release to save
-                   </p>
-                )}
               </div>
             </div>
           </div>
@@ -289,7 +261,7 @@ export default function CustomerPage() {
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm shadow-2xl" onClick={() => setIsCartOpen(false)} />
-          <div className="relative bg-white w-full rounded-t-[3rem] p-8 animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-white w-full rounded-t-[3rem] p-8 max-h-[85vh] overflow-y-auto">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-3xl font-black text-slate-900">Cart</h2>
@@ -325,12 +297,7 @@ export default function CustomerPage() {
                   <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Bill</span>
                   <span className="text-3xl font-black text-slate-900">Rs {total}</span>
                 </div>
-                <button 
-                  onClick={handlePlaceOrder}
-                  className="w-full bg-green-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-green-100 active:scale-95 transition-all"
-                >
-                  PLACE ORDER
-                </button>
+                <button onClick={handlePlaceOrder} className="w-full bg-green-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-green-100 active:scale-95 transition-all">PLACE ORDER</button>
               </div>
             )}
           </div>
@@ -344,9 +311,7 @@ export default function CustomerPage() {
             <span className="font-black text-sm flex items-center gap-3">
                <ShoppingBag size={18} className="text-green-500" /> {cart.length} ITEMS
             </span>
-            <span className="bg-white/10 px-5 py-2 rounded-2xl text-[10px] font-black tracking-widest uppercase">
-              View Cart • Rs {total}
-            </span>
+            <span className="bg-white/10 px-5 py-2 rounded-2xl text-[10px] font-black tracking-widest uppercase">View Cart • Rs {total}</span>
           </button>
         </div>
       )}

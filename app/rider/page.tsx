@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
@@ -23,7 +22,6 @@ export default function RiderAbsoluteFixPage() {
     if (data) setOrder(JSON.parse(data));
   }, []);
 
-  // 1. Customer Voice Play Function
   const playCustomerVoice = (item: any) => {
     if (item.audioData) {
       const audio = new Audio(item.audioData);
@@ -37,7 +35,6 @@ export default function RiderAbsoluteFixPage() {
     }
   };
 
-  // 2. Rider Voice Response Recording Logic
   const startRiderRecording = async (index: number) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -46,15 +43,12 @@ export default function RiderAbsoluteFixPage() {
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob); 
-        
         setRiderAudioURLs(prev => ({ ...prev, [index]: audioUrl }));
 
         const reader = new FileReader();
@@ -72,8 +66,7 @@ export default function RiderAbsoluteFixPage() {
       mediaRecorder.start();
       setIsRecordingRider(index);
     } catch (err) {
-      alert("Mic access nahi mila! Please check settings or permissions.");
-      console.error(err);
+      alert("Mic access nahi mila! Please check settings.");
     }
   };
 
@@ -85,50 +78,46 @@ export default function RiderAbsoluteFixPage() {
     }
   };
 
-  // 3. Play Rider Local Audio Preview
   const playOwnRecordedVoice = (audioUrl: string) => {
     if (!audioUrl) return;
     const audio = new Audio(audioUrl);
     audio.play().catch(e => console.error("Error playing rider voice:", e));
   };
 
-  // 4. Order Confirm & Redirect
   const handleConfirmOrder = async () => {
-    const riderConversationsText = order.items.map((item: any, i: number) => {
-      const voiceStatus = riderBase64Audio[i] ? "Voice reply recorded" : "No voice reply";
-      const textStatus = item.riderTextReply ? `Text reply: ${item.riderTextReply}` : "No text reply";
-      return `Product: ${item.name} (${voiceStatus} | ${textStatus})`;
-    }).join(" | ");
+    const riderConversationsText = order.items.map((item: any) => {
+      return item.riderTextReply ? item.riderTextReply : `${item.name} confirm hua`;
+    }).join(", ");
 
+    // 🔥 STRUCT FORMAT: Matches what the Express Bot safe layers parse
     const finalConvoData = {
-      text: riderConversationsText, 
       action: "rider_submit", 
       orderId: order.orderId,
+      text: riderConversationsText, 
       totalBill: order.total,
       conversation: order.items.map((item: any, i: number) => ({
         shopName: item.shopName,
         itemName: item.name,
-        isCustom: item.isCustom || false,
+        isCustom: !!item.isCustom,
         customerVoiceData: item.audioData || null,   
         riderVoiceResponse: riderBase64Audio[i] || null, 
-        riderTextResponse: item.riderTextReply || null 
+        riderTextResponse: item.riderTextReply || `${item.name} processed` 
       }))
     };
 
     try {
-      // Direct local api check ya Vercel link donon par chala sakti hain
-      const response = await fetch("https://voice-ai-bot-theta.vercel.app/api/sync-bot", {
+      // Direct relative call avoiding local script CSP restrictions
+      const response = await fetch("/api/ai-processor", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalConvoData),
       });
       
       const resJSON = await response.json();
-      console.log("Rider Sync Success Data:", resJSON);
-      alert("Convo analyzed by Bot! Shop items listing updated.");
+      console.log("🎉 Rider Sync Success Data:", resJSON);
+      alert("Inventory sync completed! Items are now listed on UI.");
     } catch (error) {
-      console.error("Finalization Bot API Error:", error);
-      alert("Database sync mein masla aaya, check server log!");
+      console.error("💥 Finalization Bot API Error:", error);
     }
 
     localStorage.removeItem('latestOrder');
@@ -147,7 +136,6 @@ export default function RiderAbsoluteFixPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-32">
-      {/* Navbar */}
       <nav className="sticky top-0 bg-white border-b px-6 py-5 flex justify-between items-center z-50">
         <div className="flex items-center gap-3">
           <div className="bg-green-600 p-2 rounded-xl text-white shadow-md"><Bike size={20} /></div>
@@ -178,10 +166,8 @@ export default function RiderAbsoluteFixPage() {
                 </p>
               </div>
 
-              {/* UNIVERSAL RESPONSE CONTAINER */}
               {showResponseOption && (
                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-4">
-                  
                   {hasVoice && (
                     <button 
                       type="button"
@@ -192,11 +178,9 @@ export default function RiderAbsoluteFixPage() {
                     </button>
                   )}
 
-                  {/* Rider Input Fields */}
                   <div className="space-y-3">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Your Response & Price</p>
                     
-                    {/* Input field connected to the React State Array */}
                     <div className="flex gap-2">
                       <input 
                         type="text"
@@ -213,7 +197,7 @@ export default function RiderAbsoluteFixPage() {
                         type="button"
                         onClick={() => {
                           if(!item.riderTextReply?.trim()) return alert("Pehle type karein!");
-                          alert("Response temporary save ho gaya!");
+                          alert("Response saved!");
                         }}
                         className={`px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${
                           item.riderTextReply?.trim() ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'
@@ -223,47 +207,24 @@ export default function RiderAbsoluteFixPage() {
                       </button>
                     </div>
 
-                    {/* Rider Voice Recorder */}
                     <div className="flex gap-2">
                       {isRecordingRider === i ? (
-                        <button 
-                          type="button"
-                          onClick={stopRiderRecording}
-                          className="flex-1 p-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 animate-pulse shadow-lg"
-                        >
+                        <button type="button" onClick={stopRiderRecording} className="flex-1 p-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 animate-pulse shadow-lg">
                           <Square size={16} /> Stop Recording
                         </button>
                       ) : (
-                        <button 
-                          type="button"
-                          onClick={() => startRiderRecording(i)}
-                          className="flex-1 p-4 bg-green-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                        >
+                        <button type="button" onClick={() => startRiderRecording(i)} className="flex-1 p-4 bg-green-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
                           <Mic size={16} /> Record Voice
                         </button>
                       )}
 
                       {riderAudioURLs[i] && (
-                        <button 
-                          type="button"
-                          onClick={() => playOwnRecordedVoice(riderAudioURLs[i])}
-                          className="bg-blue-600 text-white px-5 rounded-2xl flex items-center justify-center active:scale-95 shadow-md"
-                        >
+                        <button type="button" onClick={() => playOwnRecordedVoice(riderAudioURLs[i])} className="bg-blue-600 text-white px-5 rounded-2xl flex items-center justify-center active:scale-95 shadow-md">
                           <Play size={16} fill="currentColor" />
                         </button>
                       )}
                     </div>
-                    
-                    {(riderBase64Audio[i] || item.riderTextReply?.trim()) && (
-                      <p className="text-[10px] text-green-600 font-bold italic ml-1">✓ Input ready for submission!</p>
-                    )}
                   </div>
-                </div>
-              )}
-
-              {!showResponseOption && (
-                <div className="mt-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">✓ Fixed Item (No Actions Needed)</p>
                 </div>
               )}
             </div>
@@ -272,10 +233,7 @@ export default function RiderAbsoluteFixPage() {
       </main>
 
       <div className="fixed bottom-8 left-6 right-6 max-w-md mx-auto">
-        <button 
-          onClick={handleConfirmOrder}
-          className="w-full bg-slate-900 text-white py-5 rounded-[2.2rem] font-black shadow-2xl flex items-center justify-center gap-3 uppercase tracking-widest text-sm active:scale-95 transition-all"
-        >
+        <button onClick={handleConfirmOrder} className="w-full bg-slate-900 text-white py-5 rounded-[2.2rem] font-black shadow-2xl flex items-center justify-center gap-3 uppercase tracking-widest text-sm active:scale-95 transition-all">
           <CheckCircle2 size={20} className="text-green-500" /> Confirm & Send Responses
         </button>
       </div>
